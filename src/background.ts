@@ -425,53 +425,6 @@ async function deleteOldOrders() {
 
 /* ################ V3 functions  ################ */
 
-const TOKENS: {
-  [key: string]: { decimals: number; name: string; symbol: string }
-} = {}
-async function getTokeninfo(chainId: number, tokenAddress: string): Promise<{ decimals: number; name: string; symbol: string } | null> {
-  if (!tokenAddress) return null
-
-  if (!TOKENS[tokenAddress]) {
-    console.log(`No info for ${tokenAddress}, fetching...`)
-    try {
-      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, ETHERS_PROVIDERS[chainId])
-      const [newDecimals, newName, newSymbol] = await Promise.all([tokenContract.decimals(), tokenContract.name(), tokenContract.symbol()])
-      TOKENS[tokenAddress] = {
-        decimals: newDecimals,
-        name: newName,
-        symbol: newSymbol,
-      }
-    } catch (e: any) {
-      console.error('Cant get token info for address: ', tokenAddress)
-      console.error(e)
-    }
-  }
-  if (!TOKENS[tokenAddress]) return null
-
-  return TOKENS[tokenAddress]
-}
-
-async function formatTokenAmount(chainId: number, tokenAddress: string, amount: ethers.BigNumber): Promise<number> {
-  const tokenInfo = await getTokeninfo(chainId, tokenAddress)
-  if (!tokenInfo) return 0
-
-  return Number(ethers.utils.formatUnits(amount, tokenInfo.decimals))
-}
-
-async function getTokenName(chainId: number, tokenAddress: string): Promise<string | null> {
-  const tokenInfo = await getTokeninfo(chainId, tokenAddress)
-  if (!tokenInfo) return null
-
-  return tokenInfo.name
-}
-
-async function getTokenSymbol(chainId: number, tokenAddress: string): Promise<string | null> {
-  const tokenInfo = await getTokeninfo(chainId, tokenAddress)
-  if (!tokenInfo) return null
-
-  return tokenInfo.symbol
-}
-
 async function updatePriceHighLow() {
   console.time('updatePriceHighLow')
 
@@ -749,7 +702,6 @@ async function runDbMigration() {
 
 async function start() {
   console.log('background.ts: Run checks')
-  if (!process.env.INFURA_PROJECT_ID) throw new Error('NO INFURA KEY SET')
 
   console.log('background.ts: Run startup')
 
@@ -765,7 +717,7 @@ async function start() {
   // connect infura providers
   const operatorKeysString = process.env.OPERATOR_KEY as any
   if (!operatorKeysString && VALID_EVM_CHAINS.length) throw new Error("MISSING ENV VAR 'OPERATOR_KEY'")
-  const operatorKeys = JSON.parse(operatorKeysString)
+
   const results: Promise<any>[] = VALID_CHAINS.map(async (chainId: number) => {
     if (ETHERS_PROVIDERS[chainId]) return
     try {
@@ -773,31 +725,15 @@ async function start() {
       console.log(`Connected JsonRpcProvider for ${chainId}`)
     } catch (e: any) {
       console.warn(`Could not connect JsonRpcProvider for ${chainId}, trying Infura...`, e)
-      ETHERS_PROVIDERS[chainId] = new ethers.providers.InfuraProvider(getNetwork(chainId), process.env.INFURA_PROJECT_ID)
+      ETHERS_PROVIDERS[chainId] = ethers.getDefaultProvider(getNetwork(chainId))
       console.log(`Connected InfuraProvider for ${chainId}`)
     }
 
     if (chainId === 1) {
-      try {
-        SYNC_PROVIDER.mainnet = await zksync.getDefaultRestProvider('mainnet')
-      } catch (e: any) {
-        console.log(`Failed to setup ${chainId}. Disabling...`)
-        const indexA = VALID_CHAINS.indexOf(1)
-        VALID_CHAINS.splice(indexA, 1)
-        const indexB = VALID_CHAINS_ZKSYNC.indexOf(1)
-        VALID_CHAINS_ZKSYNC.splice(indexB, 1)
-      }
+      SYNC_PROVIDER.mainnet = await zksync.getDefaultRestProvider('mainnet')
     }
     if (chainId === 1002) {
-      try {
-        SYNC_PROVIDER.goerli = await zksync.getDefaultRestProvider('goerli')
-      } catch (e: any) {
-        console.log(`Failed to setup ${chainId}. Disabling...`)
-        const indexA = VALID_CHAINS.indexOf(1002)
-        VALID_CHAINS.splice(indexA, 1)
-        const indexB = VALID_CHAINS_ZKSYNC.indexOf(1002)
-        VALID_CHAINS_ZKSYNC.splice(indexB, 1)
-      }
+      SYNC_PROVIDER.goerli = await zksync.getDefaultRestProvider('goerli')
     }
   })
   Promise.all(results)

@@ -42,7 +42,6 @@ export default class API extends EventEmitter {
   MAKER_CONNECTIONS: AnyObject = {}
   SYNC_PROVIDER: AnyObject = {}
   ETHERS_PROVIDERS: AnyObject = {}
-  STARKNET_EXCHANGE: AnyObject = {}
   MARKET_MAKER_TIMEOUT = 300
   VALID_CHAINS: number[] = process.env.VALID_CHAINS
     ? JSON.parse(process.env.VALID_CHAINS)
@@ -118,10 +117,6 @@ export default class API extends EventEmitter {
 
     this.ERC20_ABI = JSON.parse(fs.readFileSync('abi/ERC20.abi', 'utf8'))
     this.EVMConfig = JSON.parse(fs.readFileSync('EVMConfig.json', 'utf8'))
-    const starknetContractABI = JSON.parse(
-      fs.readFileSync('abi/starknet_v1.abi', 'utf8')
-    )
-
     // connect infura providers
     this.VALID_EVM_CHAINS.forEach((chainId) => {
       try {
@@ -150,34 +145,9 @@ export default class API extends EventEmitter {
       }
     })
 
-    // setup provider
-    if (!process.env.STARKNET_CONTRACT_ADDRESS)
-      throw new Error('process.env.STARKNET_CONTRACT_ADDRESS not set!')
-    this.STARKNET_EXCHANGE.goerli = new starknet.Contract(
-      starknetContractABI,
-      process.env.STARKNET_CONTRACT_ADDRESS
+    this.SYNC_PROVIDER.mainnet = await zksync.getDefaultRestProvider(
+      'mainnet'
     )
-
-    try {
-      this.SYNC_PROVIDER.mainnet = await zksync.getDefaultRestProvider(
-        'mainnet'
-      )
-    } catch (e: any) {
-      console.log('Failed to setup 1. Disabling...')
-      const indexA = this.VALID_CHAINS.indexOf(1)
-      this.VALID_CHAINS.splice(indexA, 1)
-      const indexB = this.VALID_CHAINS_ZKSYNC.indexOf(1)
-      this.VALID_CHAINS_ZKSYNC.splice(indexB, 1)
-    }
-    try {
-      this.SYNC_PROVIDER.goerli = await zksync.getDefaultRestProvider('goerli')
-    } catch (e: any) {
-      console.log('Failed to setup 1002. Disabling...')
-      const indexA = this.VALID_CHAINS.indexOf(1002)
-      this.VALID_CHAINS.splice(indexA, 1)
-      const indexB = this.VALID_CHAINS_ZKSYNC.indexOf(1002)
-      this.VALID_CHAINS_ZKSYNC.splice(indexB, 1)
-    }
 
     // setup redisSubscriber
     this.redisSubscriber.PSUBSCRIBE(
