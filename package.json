@@ -6,10 +6,11 @@
   "scripts": {
     "test": "true",
     "dev": "nodemon -x ts-node -e 'ts tsx json' -r ./src/env src/",
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "start": "ts-node -r ./src/env src/",
     "background": "ts-node -r ./src/env ./src/background.ts",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "pm2": "pm2"
   },
   "repository": {
     "type": "git",
@@ -43,6 +44,7 @@
     "starknet": "3.10.1",
     "throng": "^5.0.0",
     "ts-node": "^10.5.0",
+    "tsc-alias": "^1.8.8",
     "tsconfig-paths": "^3.12.0",
     "typescript": "^4.5.5",
     "ws": "^8.2.2",

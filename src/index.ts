@@ -6,7 +6,6 @@ import { redis, subscriber, publisher } from 'src/redisClient'
 import db from 'src/db'
 import API from 'src/api'
 import type { RedisClientType } from 'redis'
-import throng from 'throng'
 
 const socketServer = createSocketServer()
 const httpServer = createHttpServer(socketServer)
@@ -24,14 +23,8 @@ function start() {
 
   api.start(port).then(() => {
     console.log('Successfully started server.')
+    process.send?.('ready')
   })
 }
 
-let WORKERS = Number(process.env.WEB_CONCURRENCY)
-if (!WORKERS || Number.isNaN(WORKERS)) WORKERS = 2
-
-throng({
-  worker: start,
-  count: WORKERS,
-  lifetime: Infinity,
-})
+start()
