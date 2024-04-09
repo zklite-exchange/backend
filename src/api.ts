@@ -119,30 +119,11 @@ export default class API extends EventEmitter {
     this.EVMConfig = JSON.parse(fs.readFileSync('EVMConfig.json', 'utf8'))
     // connect infura providers
     this.VALID_EVM_CHAINS.forEach((chainId) => {
-      try {
-        if (this.ETHERS_PROVIDERS[chainId]) return
-        try {
-          this.ETHERS_PROVIDERS[chainId] = new ethers.providers.InfuraProvider(
-            getNetwork(chainId),
-            process.env.INFURA_PROJECT_ID
-          )
-          console.log(`Connected InfuraProvider for ${chainId}`)
-        } catch (e: any) {
-          console.warn(
-            `Could not connect InfuraProvider for ${chainId}, trying RPC...`
-          )
-          this.ETHERS_PROVIDERS[chainId] = new ethers.providers.JsonRpcProvider(
-            getRPCURL(chainId)
-          )
-          console.log(`Connected JsonRpcProvider for ${chainId}`)
-        }
-      } catch (e: any) {
-        console.log(`Failed to setup ${chainId}. Disabling...`)
-        const indexA = this.VALID_CHAINS.indexOf(chainId)
-        this.VALID_CHAINS.splice(indexA, 1)
-        const indexB = this.VALID_EVM_CHAINS.indexOf(chainId)
-        this.VALID_EVM_CHAINS.splice(indexB, 1)
-      }
+      if (this.ETHERS_PROVIDERS[chainId]) return
+      this.ETHERS_PROVIDERS[chainId] = new ethers.providers.AlchemyProvider(
+        getNetwork(chainId),
+        process.env.ALCHEMY_API_KEY
+      )
     })
 
     this.SYNC_PROVIDER.mainnet = await zksync.getDefaultRestProvider(

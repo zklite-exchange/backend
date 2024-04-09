@@ -715,19 +715,12 @@ async function start() {
   const EVMContractABI = JSON.parse(fs.readFileSync('abi/EVM_Exchange.json', 'utf8')).abi
 
   // connect infura providers
-  const operatorKeysString = process.env.OPERATOR_KEY as any
-  if (!operatorKeysString && VALID_EVM_CHAINS.length) throw new Error("MISSING ENV VAR 'OPERATOR_KEY'")
+  const operatorKeysString = process.env.ALCHEMY_API_KEY as any
+  if (!operatorKeysString && VALID_EVM_CHAINS.length) throw new Error("MISSING ENV VAR 'ALCHEMY_API_KEY'")
 
   const results: Promise<any>[] = VALID_CHAINS.map(async (chainId: number) => {
     if (ETHERS_PROVIDERS[chainId]) return
-    try {
-      ETHERS_PROVIDERS[chainId] = new ethers.providers.JsonRpcProvider(getRPCURL(chainId))
-      console.log(`Connected JsonRpcProvider for ${chainId}`)
-    } catch (e: any) {
-      console.warn(`Could not connect JsonRpcProvider for ${chainId}, trying Infura...`, e)
-      ETHERS_PROVIDERS[chainId] = ethers.getDefaultProvider(getNetwork(chainId))
-      console.log(`Connected InfuraProvider for ${chainId}`)
-    }
+    ETHERS_PROVIDERS[chainId] = new ethers.providers.AlchemyProvider(getNetwork(chainId), operatorKeysString)
 
     if (chainId === 1) {
       SYNC_PROVIDER.mainnet = await zksync.getDefaultRestProvider('mainnet')
