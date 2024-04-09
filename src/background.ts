@@ -323,8 +323,14 @@ async function updateTokenInfoZkSync(chainId: number) {
       if (!symbol.includes('ERC20')) {
         tokenInfo.usdPrice = 0
         try {
-          const contract = new ethers.Contract(address, ERC20_ABI, ETHERS_PROVIDERS[chainId])
-          tokenInfo.name = await contract.name()
+          const cachedName = await redis.HGET(`tokenName:${chainId}`, symbol)
+          if (cachedName) {
+            tokenInfo.name = cachedName
+          } else {
+            const contract = new ethers.Contract(address, ERC20_ABI, ETHERS_PROVIDERS[chainId])
+            tokenInfo.name = await contract.name()
+            redis.HSET(`tokenName:${chainId}`, symbol, tokenInfo.name)
+          }
         } catch (e: any) {
           console.warn(e.message)
           tokenInfo.name = tokenInfo.address
