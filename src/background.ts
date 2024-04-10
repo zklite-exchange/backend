@@ -319,11 +319,13 @@ async function updateTokenInfoZkSync(chainId: number) {
     tokenInfoResults = fetchResult.result.list
     const results1: Promise<any>[] = tokenInfoResults.map(async (tokenInfo: AnyObject) => {
       const { symbol, address } = tokenInfo
-      if (!symbol || !address || address === ethers.constants.AddressZero) return
+      if (!symbol || !address) return
       if (!symbol.includes('ERC20')) {
         tokenInfo.usdPrice = 0
         try {
-          const cachedName = await redis.HGET(`tokenName:${chainId}`, symbol)
+          const cachedName = address === ethers.constants.AddressZero
+              ? 'Ethereum'
+              : await redis.HGET(`tokenName:${chainId}`, symbol)
           if (cachedName) {
             tokenInfo.name = cachedName
           } else {
