@@ -6,7 +6,15 @@ import * as zksync from 'zksync'
 import fs from 'fs'
 import { redis, publisher } from './redisClient'
 import db from './db'
-import { formatPrice, getNetwork, getRPCURL, getFeeEstimationMarket, getReadableTxError, sortMarketPair } from './utils'
+import {
+  formatPrice,
+  getNetwork,
+  getRPCURL,
+  getFeeEstimationMarket,
+  getReadableTxError,
+  sortMarketPair,
+  CMC_IDS
+} from './utils'
 import type { ZZMarketInfo, AnyObject, ZZMarket, ZZMarketSummary, ZZPastOrder } from './types'
 
 const NUMBER_OF_SNAPSHOT_POSITIONS = 200
@@ -84,21 +92,34 @@ async function updateUsdPrice() {
     const markets = await redis.SMEMBERS(`activemarkets:${chainId}`)
     const tokenInfos = await redis.HGETALL(`tokeninfo:${chainId}`)
     // get active tokens once
-    let tokenSymbols = markets.join('-').split('-')
-    tokenSymbols = tokenSymbols.filter((x, i) => i === tokenSymbols.indexOf(x))
+    const tokenSymbols = Array.from(new Set(markets.join('-').split('-')))
+    const fetchResult = (await fetch(
+        `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?symbol=${tokenSymbols.join(',')}`, {
+      headers: {
+        'X-CMC_PRO_API_KEY': process.env.CMC_API_KEY
+      }
+    }).then((r: any) => r.json()).catch((e: any) => {
+      console.error('Fetch token usd price failed', e)
+    })) as AnyObject
+
+    if (!fetchResult) return
+
     const results1: Promise<any>[] = tokenSymbols.map(async (token: string) => {
       const tokenInfoString = tokenInfos[token]
       if (!tokenInfoString) return
       const tokenInfo = JSON.parse(tokenInfoString)
-
+      const cmcId = CMC_IDS[token]
+      if  (!cmcId) {
+        console.error(`Unknown CMC id for token ${token}`)
+        return
+      }
       try {
-        const fetchResult = (await fetch(`${ZKSYNC_BASE_URL[network]}tokens/${token}/priceIn/usd`).then((r: any) => r.json())) as AnyObject
-        let usdPrice = fetchResult?.result?.price > 0 ? formatPrice(fetchResult?.result?.price) : 1
-        if (usdPrice === 0 && token === 'ZZ') {
-          usdPrice = '3.30'
-        } else if (usdPrice === 0) {
-          usdPrice = '1.00'
+        const price = fetchResult.data[token]?.find((it: any) => it.id === cmcId)?.quote?.USD?.price
+        if (!price || price <= 0) {
+          console.error(`Can't find CMC quote for ${token}`)
+          return
         }
+        const usdPrice = formatPrice(price)
 
         updatedTokenPrice[token] = usdPrice
         tokenInfo.usdPrice = usdPrice
@@ -114,8 +135,12 @@ async function updateUsdPrice() {
     const results2: Promise<any>[] = markets.map(async (market: ZZMarket) => {
       if (!marketInfos[market]) return
       const marketInfo = JSON.parse(marketInfos[market])
-      marketInfo.baseAsset.usdPrice = Number(formatPrice(updatedTokenPrice[marketInfo.baseAsset.symbol]))
-      marketInfo.quoteAsset.usdPrice = Number(formatPrice(updatedTokenPrice[marketInfo.quoteAsset.symbol]))
+      if (updatedTokenPrice[marketInfo.baseAsset.symbol]) {
+        marketInfo.baseAsset.usdPrice = Number(formatPrice(updatedTokenPrice[marketInfo.baseAsset.symbol]))
+      }
+      if (updatedTokenPrice[marketInfo.quoteAsset.symbol]) {
+        marketInfo.quoteAsset.usdPrice = Number(formatPrice(updatedTokenPrice[marketInfo.quoteAsset.symbol]))
+      }
       redis.HSET(`marketinfo:${chainId}`, market, JSON.stringify(marketInfo))
       publisher.PUBLISH(`broadcastmsg:all:${chainId}:${market}`, JSON.stringify({ op: 'marketinfo', args: [marketInfo] }))
     })
@@ -757,7 +782,7 @@ async function start() {
   setInterval(removeOldLiquidity, 10000)
   setInterval(updateLastPrices, 15000)
   setInterval(updateMarketSummarys, 15000)
-  setInterval(updateUsdPrice, 20000)
+  setInterval(updateUsdPrice, 15 * 60 * 1000)
   setInterval(updateFeesZkSync, 25000)
   setInterval(updatePriceHighLow, 30000)
   setInterval(updateVolumes, 30000)
