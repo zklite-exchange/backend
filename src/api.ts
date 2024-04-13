@@ -1732,8 +1732,9 @@ export default class API extends EventEmitter {
       ; (this.wss.clients as Set<WSocket>).forEach((ws) => {
         if (!ws.isAlive) {
           const userconnkey = `${ws.chainId}:${ws.userId}`
+          const mmConnKey = `${ws.chainId}:${ws.uuid}`
           delete this.USER_CONNECTIONS[userconnkey]
-          delete this.MAKER_CONNECTIONS[userconnkey]
+          delete this.MAKER_CONNECTIONS[mmConnKey]
           ws.terminate()
         } else {
           ws.isAlive = false
