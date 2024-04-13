@@ -346,7 +346,7 @@ async function updateTokenInfoZkSync(chainId: number) {
       const { symbol, address } = tokenInfo
       if (!symbol || !address) return
       if (!symbol.includes('ERC20')) {
-        tokenInfo.usdPrice = 0
+        if (!tokenInfo.usdPrice) tokenInfo.usdPrice = 0
         try {
           const cachedName = address === ethers.constants.AddressZero
               ? 'Ethereum'
@@ -782,6 +782,7 @@ async function start() {
   setInterval(removeOldLiquidity, 10000)
   setInterval(updateLastPrices, 15000)
   setInterval(updateMarketSummarys, 15000)
+  updateUsdPrice().then()
   setInterval(updateUsdPrice, 15 * 60 * 1000)
   setInterval(updateFeesZkSync, 25000)
   setInterval(updatePriceHighLow, 30000)
