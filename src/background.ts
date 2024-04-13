@@ -126,8 +126,8 @@ async function updateUsdPrice() {
       } catch (err: any) {
         console.log(`Could not update price for ${token}, Error: ${err.message}`)
       }
-      redis.HSET(`tokeninfo:${chainId}`, tokenInfo.symbol, JSON.stringify(tokenInfo))
-      redis.HSET(`tokeninfo:${chainId}`, tokenInfo.address, JSON.stringify(tokenInfo))
+      await redis.HSET(`tokeninfo:${chainId}`, tokenInfo.symbol, JSON.stringify(tokenInfo))
+      // redis.HSET(`tokeninfo:${chainId}`, tokenInfo.address, JSON.stringify(tokenInfo))
     })
     await Promise.all(results1)
 
@@ -141,8 +141,8 @@ async function updateUsdPrice() {
       if (updatedTokenPrice[marketInfo.quoteAsset.symbol]) {
         marketInfo.quoteAsset.usdPrice = Number(formatPrice(updatedTokenPrice[marketInfo.quoteAsset.symbol]))
       }
-      redis.HSET(`marketinfo:${chainId}`, market, JSON.stringify(marketInfo))
-      publisher.PUBLISH(`broadcastmsg:all:${chainId}:${market}`, JSON.stringify({ op: 'marketinfo', args: [marketInfo] }))
+      await redis.HSET(`marketinfo:${chainId}`, market, JSON.stringify(marketInfo))
+      await publisher.PUBLISH(`broadcastmsg:all:${chainId}:${market}`, JSON.stringify({ op: 'marketinfo', args: [marketInfo] }))
     })
     await Promise.all(results2)
   })
@@ -379,7 +379,7 @@ async function updateTokenInfoZkSync(chainId: number) {
 
     marketInfo.baseAsset = updatedTokenInfo[baseSymbol]
     marketInfo.quoteAsset = updatedTokenInfo[quoteSymbol]
-    redis.HSET(`marketinfo:${chainId}`, alias, JSON.stringify(marketInfo))
+    await redis.HSET(`marketinfo:${chainId}`, alias, JSON.stringify(marketInfo))
   })
   await Promise.all(resultsUpdateMarketInfos)
 }
