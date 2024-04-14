@@ -144,4 +144,5 @@ export const CMC_IDS: Record<string, number> = {
   "WBTC": 3717,
   "WETH": 2396,
   "wstEth": 12409,
+  "FXS": 6953,
 }

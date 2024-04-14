@@ -298,15 +298,17 @@ async function removeOldLiquidity() {
       redis.HSET(`bestbid:${chainId}`, marketId, bestBidPrice)
       redis.SET(`bestliquidity:${chainId}:${marketId}`, JSON.stringify(bestLiquidity), { EX: 45 })
 
-      if (bestAskPrice > 0 && bestBidPrice > 0) {
-        const midPrice: number = (bestAskPrice + bestBidPrice) / 2
-        redis.HSET(`lastprices:${chainId}`, marketId, formatPrice(midPrice))
+      const midPrice: number =
+        bestAskPrice > 0 && bestBidPrice > 0
+          ? (bestAskPrice + bestBidPrice) / 2
+          : bestAskPrice > 0
+            ? bestAskPrice
+            : bestBidPrice;
+
+      if (midPrice > 0) {
+        redis.HSET(`lastprices:${chainId}`, marketId, formatPrice(midPrice));
       }
 
-      if (bestAskPrice > 0 && bestBidPrice > 0) {
-        const midPrice: number = (bestAskPrice + bestBidPrice) / 2
-        redis.HSET(`lastprices:${chainId}`, marketId, formatPrice(midPrice))
-      }
 
       // Clear old liquidity every 10 seconds
       redis.DEL(redisKeyLiquidity)
