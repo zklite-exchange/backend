@@ -114,12 +114,11 @@ async function updateUsdPrice() {
         return
       }
       try {
-        const price = fetchResult.data[token]?.find((it: any) => it.id === cmcId)?.quote?.USD?.price
-        if (!price || price <= 0) {
+        const usdPrice = fetchResult.data[token]?.find((it: any) => it.id === cmcId)?.quote?.USD?.price
+        if (!usdPrice || usdPrice <= 0) {
           console.error(`Can't find CMC quote for ${token}`)
           return
         }
-        const usdPrice = formatPrice(price)
 
         updatedTokenPrice[token] = usdPrice
         tokenInfo.usdPrice = usdPrice
@@ -323,22 +322,14 @@ async function removeOldLiquidity() {
  * @param chainId
  */
 async function updateTokenInfoZkSync(chainId: number) {
-  const updatedTokenInfo: AnyObject = {
-    ETH: {
-      id: 0,
-      address: ethers.constants.AddressZero,
-      symbol: 'ETH',
-      decimals: 18,
-      enabledForFees: true,
-      usdPrice: '1910.20',
-      name: 'Ethereum',
-    },
-  }
+  const updatedTokenInfo: AnyObject = {}
 
   // fetch new tokenInfo from zkSync
   let index = 0
   let tokenInfoResults: AnyObject[]
   const network = getNetwork(chainId)
+  const cachedTokenInfos: AnyObject = await redis.HGETALL(`tokeninfo:${chainId}`)
+
   do {
     const fetchResult = await fetch(`${ZKSYNC_BASE_URL[network]}tokens?from=${index}&limit=100&direction=newer`).then((r: any) => r.json())
     tokenInfoResults = fetchResult.result.list
@@ -346,7 +337,6 @@ async function updateTokenInfoZkSync(chainId: number) {
       const { symbol, address } = tokenInfo
       if (!symbol || !address) return
       if (!symbol.includes('ERC20')) {
-        if (!tokenInfo.usdPrice) tokenInfo.usdPrice = 0
         try {
           const cachedName = address === ethers.constants.AddressZero
               ? 'Ethereum'
@@ -361,6 +351,11 @@ async function updateTokenInfoZkSync(chainId: number) {
         } catch (e: any) {
           console.warn(e.message)
           tokenInfo.name = tokenInfo.address
+        }
+        if (cachedTokenInfos[symbol]) {
+          tokenInfo.usdPrice = JSON.parse(cachedTokenInfos[symbol]).usdPrice ?? 0
+        } else {
+          tokenInfo.usdPrice = 0
         }
         redis.HSET(`tokeninfo:${chainId}`, symbol, JSON.stringify(tokenInfo))
         updatedTokenInfo[symbol] = tokenInfo
