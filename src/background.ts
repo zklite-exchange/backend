@@ -251,7 +251,7 @@ async function removeOldLiquidity() {
 
       // remove from activemarkets if no liquidity exists
       if (liquidity.length === 0) {
-        redis.SREM(`activemarkets:${chainId}`, marketId)
+        // redis.SREM(`activemarkets:${chainId}`, marketId)
         return
       }
 
