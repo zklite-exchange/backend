@@ -136,5 +136,12 @@ export const CMC_IDS: Record<string, number> = {
   "BTC": 1,
   "ETH":  1027,
   "USDC": 3408,
-  "USDT": 825
+  "USDT": 825,
+  "DAI": 4943,
+  "LINK": 1975,
+  "STORJ": 1772,
+  "UNI": 7083,
+  "WBTC": 3717,
+  "WETH": 2396,
+  "wstEth": 12409,
 }
