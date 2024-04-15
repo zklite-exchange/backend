@@ -1,15 +1,15 @@
-# ZigZag API
+# zkLite Exchange API
 
 # URLs
 
 ## Mainnet
 
-Websocket Base URL: wss://zigzag-exchange.herokuapp.com  
-HTTPS Base URL: https://zigzag-exchange.herokuapp.com
+Websocket Base URL: wss://api.zklite.io  
+HTTPS Base URL: https://api.zklite.io
 
 # Chain IDs
 
-The following is a list of Zigzag Chain IDs. Note that there is no relation between this and Ethereum Chain IDs.
+The following is a list of zkLite Chain IDs. Note that there is no relation between this and Ethereum Chain IDs.
 
 IDs < 1000 are mainnet contracts. IDs >= 1000 are testnet contracts.
 
@@ -35,7 +35,7 @@ Using the price from the `quote` response, you can send a limit order with `subm
 
 ## Structure
 
-All messages the Zigzag Websocket API have the following structure
+All messages the zkLite Websocket API have the following structure
 
 ```json
 { "op": "operation", "args": ["list", "of", "args"] }
@@ -44,7 +44,7 @@ All messages the Zigzag Websocket API have the following structure
 Messages to the HTTP POST API have a similar structure. An example curl command is found below.
 
 ```
-curl -X POST "https://zigzag-exchange.herokuapp.com/" --header "Content-Type: application/json" -d '{"op":"requestquote", "args": [1002, "ETH-USDT", "b", "0.232"]}'
+curl -X POST "https://api.zklite.io/" --header "Content-Type: application/json" -d '{"op":"requestquote", "args": [1002, "ETH-USDT", "b", "0.232"]}'
 ```
 
 ## Pings
@@ -91,7 +91,7 @@ Description: Submit an order.
 
 For zksync, zkOrder is the output of zksync.wallet.getOrder in the Javascript library.
 
-An example of how to submit an order with Javascript in zksync can be found [here](https://github.com/ZigZagExchange/frontend/blob/master/src/lib/api/providers/APIZKProvider/APIZKProvider.js) in the `submitorder` function.
+An example of how to submit an order with Javascript in zksync can be found [here](https://github.com/zklite-exchange/frontend/blob/master/src/lib/api/providers/APIZKProvider/APIZKProvider.js) in the `submitorder` function.
 
 This operation is also available over HTTP POST and returns a `userorderack` message.
 
@@ -585,7 +585,7 @@ async function cancelorder(order) {
     const orderid = 1050;
     const message = `cancelorder2:${CHAIN_ID}:${orderid}`;
     const signature = await WALLET.signMessage(message);
-    zigzagws.send(JSON.stringify({ op: "cancelorder2", args: [CHAIN_ID, orderid, signature] }));
+    ws.send(JSON.stringify({ op: "cancelorder2", args: [CHAIN_ID, orderid, signature] }));
 }
 ```
 
@@ -664,7 +664,7 @@ Description: Response to requestquote. Returns a fully filled quote with baseQua
 
 Arguments: `[marketInfoJson]`
 
-Description: Returns a standard market info JSON from the Zigzag Markets API. Returned on every `subscribemarket` call
+Description: Returns a standard market info JSON from the zkLite Markets API. Returned on every `subscribemarket` call
 
 ```json
 {
@@ -758,7 +758,7 @@ Description: Request a list of markets. Available over REST. Response is a marke
 ```
 
 ```bash
-curl "https://zigzag-exchange.herokuapp.com/" -X POST -H 'Content-Type:application/json' -d '{"op":"marketsreq","args":[1, true]}'
+curl "https://api.zklite.io/" -X POST -H 'Content-Type:application/json' -d '{"op":"marketsreq","args":[1, true]}'
 ```
 
 ---
@@ -776,7 +776,7 @@ Available over HTTP.
 ```
 
 ```bash
-curl "https://zigzag-exchange.herokuapp.com/" -H 'Content-Type:application/json' -d '{"op":"dailyvolumereq", "args":[1002]}'
+curl "https://api.zklite.io/" -H 'Content-Type:application/json' -d '{"op":"dailyvolumereq", "args":[1002]}'
 ```
 
 ---
@@ -819,7 +819,7 @@ Description: Error message from a requested operation
 ```
 
 
-## zigzag endpoints
+## zkLite API endpoints
 
 ###### /api/v1/markets/:chainId?
 
