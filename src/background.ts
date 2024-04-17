@@ -316,9 +316,11 @@ async function removeOldLiquidity() {
         // eslint-disable-next-line no-nested-ternary
         bestAskPriceValid && bestBidPriceValid
           ? (bestAskPrice + bestBidPrice) / 2
+          // eslint-disable-next-line no-nested-ternary
           : bestAskPriceValid
             ? bestAskPrice
-            : bestBidPrice
+            : bestBidPriceValid
+              ? bestBidPrice : cmcPrice
 
       if (midPrice > 0) {
         redis.HSET(`lastprices:${chainId}`, marketId, formatPrice(midPrice));
