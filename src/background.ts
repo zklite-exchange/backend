@@ -298,12 +298,27 @@ async function removeOldLiquidity() {
       redis.HSET(`bestbid:${chainId}`, marketId, bestBidPrice)
       redis.SET(`bestliquidity:${chainId}:${marketId}`, JSON.stringify(bestLiquidity), { EX: 45 })
 
+      let marketInfo: any = await redis.HGET(`marketinfo:${chainId}`, marketId)
+      let cmcPrice = 0
+      if (marketInfo) {
+        marketInfo = JSON.parse(marketInfo)
+        const baseAssetUsdPrice = Number(marketInfo.baseAsset.usdPrice)
+        const quoteAssetUsdPrice = Number(marketInfo.quoteAsset.usdPrice)
+        if (baseAssetUsdPrice > 0 && quoteAssetUsdPrice > 0) {
+          cmcPrice = baseAssetUsdPrice / quoteAssetUsdPrice
+        }
+      }
+
+      const bestAskPriceValid = bestAskPrice > 0 && (cmcPrice === 0 || Math.abs(cmcPrice - bestAskPrice) * 100 / cmcPrice <= 10) // diff < 10%
+      const bestBidPriceValid = bestBidPrice > 0 && (cmcPrice === 0 || Math.abs(cmcPrice - bestBidPrice) * 100 / cmcPrice <= 10) // diff < 10%
+
       const midPrice: number =
-        bestAskPrice > 0 && bestBidPrice > 0
+        // eslint-disable-next-line no-nested-ternary
+        bestAskPriceValid && bestBidPriceValid
           ? (bestAskPrice + bestBidPrice) / 2
-          : bestAskPrice > 0
+          : bestAskPriceValid
             ? bestAskPrice
-            : bestBidPrice;
+            : bestBidPrice
 
       if (midPrice > 0) {
         redis.HSET(`lastprices:${chainId}`, marketId, formatPrice(midPrice));
