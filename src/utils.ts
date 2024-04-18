@@ -145,4 +145,13 @@ export const CMC_IDS: Record<string, number> = {
   "WETH": 2396,
   "wstEth": 12409,
   "FXS": 6953,
+  "SOL": 5426,
+  "DYDX": 28324,
+  "MATIC": 3890,
+  "FTM": 3513,
+  "LDO": 8000,
+  "FRAX": 6952,
+  "AAVE": 7278,
+  "ENS": 13855,
+  "SHIB": 5994,
 }
