@@ -194,6 +194,7 @@ export default class API extends EventEmitter {
    * @returns
    */
   getDefaultValuesFromArweave = async (chainId: number, market: string) => {
+    console.log('getDefaultValuesFromArweave', chainId, market)
     let marketInfo = null
     let marketArweaveId: string
     try {
