@@ -154,4 +154,5 @@ export const CMC_IDS: Record<string, number> = {
   "AAVE": 7278,
   "ENS": 13855,
   "SHIB": 5994,
+  "ZZ": 20755,
 }
