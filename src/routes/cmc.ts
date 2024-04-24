@@ -1,4 +1,6 @@
-import type { ZZHttpServer } from 'src/types'
+import type { AnyObject, ZZHttpServer } from "src/types";
+import { redis } from "src/redisClient";
+import { CMC_IDS } from "src/utils";
 
 export default function cmcRoutes(app: ZZHttpServer) {
   const defaultChainId = process.env.DEFAULT_CHAIN_ID ? Number(process.env.DEFAULT_CHAIN_ID) : 1
@@ -76,6 +78,45 @@ export default function cmcRoutes(app: ZZHttpServer) {
     } catch (error: any) {
       console.log(error.message)
       res.status(400).send({ op: 'error', message: 'Failed to fetch ticker prices' })
+    }
+  })
+  app.get('/api/coinmarketcap/v1/assets/:chainId?', getChainId, async (req, res) => {
+    try {
+      const { chainId } = req
+
+      if (!chainId || !app.api.VALID_CHAINS.includes(chainId)) {
+        res.status(400).send({
+          op: 'error',
+          message: `ChainId not found, use ${app.api.VALID_CHAINS}`,
+        })
+        return
+      }
+
+      const markets = await redis.SMEMBERS(`activemarkets:${chainId}`)
+      const tokenInfos: AnyObject = await redis.HGETALL(`tokeninfo:${chainId}`)
+      // get active tokens once
+      const tokenSymbols: string[] = Array.from(new Set(markets.join('-').split('-')))
+      const assets: AnyObject = { }
+      for (let i = 0; i < tokenSymbols.length; i++) {
+        const symbol = tokenSymbols[i]
+        const tokenInfo = JSON.parse(tokenInfos[symbol] || '{}')
+        const name = tokenInfo?.name
+        const address = tokenInfo?.address
+        const cmcId = CMC_IDS[symbol]
+        if (name && address && cmcId) {
+          assets[symbol] = {
+            "name": name,
+            "unified_cryptoasset_id": cmcId,
+            "can_withdraw": true,
+            "can_deposit": true,
+            "contractAddress": address,
+          }
+        }
+      }
+      res.status(200).json(assets);
+    } catch (error: any) {
+      console.log(error.message)
+      res.status(400).send({ op: 'error', message: 'Failed to fetch assets' })
     }
   })
 
