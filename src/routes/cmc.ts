@@ -79,8 +79,8 @@ export default function cmcRoutes(app: ZZHttpServer) {
     }
   })
 
-  app.get('/api/coinmarketcap/v1/orderbook/:chainId/:market_pair?', getChainId, async (req, res) => {
-    const { chainId } = req
+  app.get('/api/coinmarketcap/v1/orderbook/:chainId/:marketPair?', getChainId, async (req, res) => {
+    const { chainId, marketPair } = req as any
 
     if (!chainId || !app.api.VALID_CHAINS.includes(chainId)) {
       res.status(400).send({
@@ -90,8 +90,16 @@ export default function cmcRoutes(app: ZZHttpServer) {
       return
     }
 
-    const market = req.params.market_pair.replace('_', '-').toUpperCase()
-    const altMarket = req.params.market_pair.replace('_', '-')
+    if (!marketPair) {
+      res.status(400).send({
+        op: 'error',
+        message: 'Invalid market pair'
+      })
+      return
+    }
+
+    const market = marketPair.replace('_', '-').toUpperCase()
+    const altMarket = marketPair.replace('_', '-')
     const depth: number = req.query.depth ? Number(req.query.depth) : 0
     const level: number = req.query.level ? Number(req.query.level) : 2
     if (![1, 2, 3].includes(level)) {
@@ -118,8 +126,8 @@ export default function cmcRoutes(app: ZZHttpServer) {
     }
   })
 
-  app.get('/api/coinmarketcap/v1/trades/:chainId/:market_pair?', getChainId, async (req, res) => {
-    const { chainId } = req
+  app.get('/api/coinmarketcap/v1/trades/:chainId/:marketPair?', getChainId, async (req, res) => {
+    const { chainId, marketPair } = req as any
 
     if (!chainId || !app.api.VALID_CHAINS.includes(chainId)) {
       res.status(400).send({
@@ -129,8 +137,16 @@ export default function cmcRoutes(app: ZZHttpServer) {
       return
     }
 
-    const market = req.params.market_pair.replace('_', '-').toUpperCase()
-    const altMarket = req.params.market_pair.replace('_', '-')
+    if (!marketPair) {
+      res.status(400).send({
+        op: 'error',
+        message: 'Invalid market pair'
+      })
+      return
+    }
+
+    const market = marketPair.replace('_', '-').toUpperCase()
+    const altMarket = marketPair.replace('_', '-')
     try {
       let fills = await app.api.getfills(chainId, market, 25)
       if (fills.length === 0) {
