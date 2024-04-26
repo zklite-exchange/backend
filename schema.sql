@@ -170,7 +170,11 @@ CREATE TABLE IF NOT EXISTS past_orders_V3 (
   taker_fee          NUMERIC(32, 16) NOT NULL DEFAULT 0.0,
   txtime             TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
+ALTER TABLE past_orders_V3 ADD COLUMN IF NOT EXISTS taker_fee_token TEXT;
+ALTER TABLE past_orders_V3 ADD COLUMN IF NOT EXISTS maker_fee_token TEXT;
+ALTER TABLE past_orders_V3 ADD COLUMN IF NOT EXISTS usd_notional NUMERIC(32, 16);
 
+CREATE UNIQUE INDEX IF NOT EXISTS past_orders_V3_txhash ON past_orders_V3(txhash);
 CREATE INDEX IF NOT EXISTS past_orders_V3_chainid_taker_buy_token_taker_sell_token ON past_orders_V3(chainid, taker_buy_token, taker_sell_token);
 CREATE INDEX IF NOT EXISTS past_orders_V3_chainid                                  ON past_orders_V3(chainid);
 CREATE INDEX IF NOT EXISTS past_orders_V3_chainid_taker_address                    ON past_orders_V3(chainid, taker_address);
@@ -179,3 +183,4 @@ CREATE INDEX IF NOT EXISTS past_orders_V3_chainid_maker_address                 
 CREATE INDEX IF NOT EXISTS past_orders_V3_maker_address                            ON past_orders_V3(maker_address);
 CREATE INDEX IF NOT EXISTS past_orders_V3_chainid_market                           ON past_orders_V3(chainid, market);
 CREATE INDEX IF NOT EXISTS past_orders_V3_market                                   ON past_orders_V3(market);
+CREATE INDEX IF NOT EXISTS past_orders_V3_txtime                                   ON past_orders_V3(txtime);
