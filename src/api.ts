@@ -565,25 +565,24 @@ export default class API extends EventEmitter {
         const takerAddress: string = zktx.recipient
         const usdNotional = Math.max(baseVolumeUsd, quoteVolumeUsd)
         const txTime = new Date(fetchResult.result.tx.createdAt).toISOString()
-
-        await this.db.query(`INSERT INTO past_orders_V3 (
+        await this.db.query(`INSERT INTO past_orders (
                         txhash,
                         market,
                         chainid,
                         taker_address,
                         maker_address,
-                        taker_buy_token,
-                        taker_sell_token,
-                        taker_buy_amount,
-                        taker_sell_amount,
+                        side,
+                        base_amount,
+                        quote_amount,
+                        price,
+                        usd_notional,
                         taker_fee,
                         taker_fee_token,
-                        usd_notional,
                         txtime
                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
-            txhash, market, chainId, takerAddress, makerAddress, takerBuyToken, takerSellToken, takerBuyAmount,
-            takerSellAmount, feeAmount, feeToken, usdNotional, txTime])
+            txhash, market, chainId, takerAddress, makerAddress, side,
+            baseAmount, quoteAmount, priceWithoutFee, usdNotional, feeAmount, feeToken, txTime])
 
         const valuesFills = [
           newstatus,
