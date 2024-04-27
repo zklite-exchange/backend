@@ -184,3 +184,34 @@ CREATE INDEX IF NOT EXISTS past_orders_V3_maker_address                         
 CREATE INDEX IF NOT EXISTS past_orders_V3_chainid_market                           ON past_orders_V3(chainid, market);
 CREATE INDEX IF NOT EXISTS past_orders_V3_market                                   ON past_orders_V3(market);
 CREATE INDEX IF NOT EXISTS past_orders_V3_txtime                                   ON past_orders_V3(txtime);
+
+CREATE TYPE OrderSide AS ENUM ('b', 's');
+
+CREATE TABLE IF NOT EXISTS past_orders (
+  id                 SERIAL          PRIMARY KEY,
+  txhash             TEXT            NOT NULL,
+  market             TEXT            NOT NULL,
+  chainid            INTEGER         NOT NULL,
+  taker_address      TEXT            NOT NULL,
+  maker_address      TEXT            NOT NULL,
+  side               OrderSide       NOT NULL,
+  base_amount        NUMERIC(32, 16) NOT NULL,
+  quote_amount       NUMERIC(32, 16) NOT NULL,
+  price              NUMERIC(32, 16) NOT NULL,
+  usd_notional       NUMERIC(32, 16) NOT NULL,
+  maker_fee          NUMERIC(32, 16) NOT NULL DEFAULT 0.0,
+  taker_fee          NUMERIC(32, 16) NOT NULL DEFAULT 0.0,
+  maker_fee_token    TEXT,
+  taker_fee_token    TEXT,
+  txtime             TIMESTAMPTZ     NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS past_orders_txhash ON past_orders(txhash);
+CREATE INDEX IF NOT EXISTS past_orders_chainid                                  ON past_orders(chainid);
+CREATE INDEX IF NOT EXISTS past_orders_chainid_taker_address                    ON past_orders(chainid, taker_address);
+CREATE INDEX IF NOT EXISTS past_orders_taker_address                            ON past_orders(taker_address);
+CREATE INDEX IF NOT EXISTS past_orders_chainid_maker_address                    ON past_orders(chainid, maker_address);
+CREATE INDEX IF NOT EXISTS past_orders_maker_address                            ON past_orders(maker_address);
+CREATE INDEX IF NOT EXISTS past_orders_chainid_market                           ON past_orders(chainid, market);
+CREATE INDEX IF NOT EXISTS past_orders_market                                   ON past_orders(market);
+CREATE INDEX IF NOT EXISTS past_orders_txtime                                   ON past_orders(txtime);
