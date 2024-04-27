@@ -212,6 +212,7 @@ CREATE INDEX IF NOT EXISTS past_orders_chainid_taker_address                    
 CREATE INDEX IF NOT EXISTS past_orders_taker_address                            ON past_orders(taker_address);
 CREATE INDEX IF NOT EXISTS past_orders_chainid_maker_address                    ON past_orders(chainid, maker_address);
 CREATE INDEX IF NOT EXISTS past_orders_maker_address                            ON past_orders(maker_address);
-CREATE INDEX IF NOT EXISTS past_orders_chainid_market                           ON past_orders(chainid, market);
+-- CREATE INDEX IF NOT EXISTS past_orders_chainid_market                           ON past_orders(chainid, market);
+CREATE INDEX IF NOT EXISTS past_orders_chainid_market_txtime                    ON past_orders(chainid, market, txtime);
 CREATE INDEX IF NOT EXISTS past_orders_market                                   ON past_orders(market);
 CREATE INDEX IF NOT EXISTS past_orders_txtime                                   ON past_orders(txtime);
