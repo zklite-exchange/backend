@@ -512,10 +512,6 @@ export default class API extends EventEmitter {
 
         let baseAmount: number
         let quoteAmount: number
-        let takerBuyToken: string
-        let takerSellToken: string
-        let takerBuyAmount: number
-        let takerSellAmount: number
 
         if (side === 's') {
           baseAmount = Number(
@@ -532,11 +528,6 @@ export default class API extends EventEmitter {
             )
           )
 
-          takerSellToken = marketInfo.baseAsset.symbol
-          takerSellAmount = baseAmount
-
-          takerBuyToken = marketInfo.quoteAsset.symbol
-          takerBuyAmount = quoteAmount
         } else {
           baseAmount = Number(
             ethers.utils.formatUnits(
@@ -551,12 +542,6 @@ export default class API extends EventEmitter {
             )
           )
           quoteAmount -= marketInfo.quoteFee
-
-          takerSellToken = marketInfo.quoteAsset.symbol
-          takerSellAmount = quoteAmount
-
-          takerBuyToken = marketInfo.baseAsset.symbol
-          takerBuyAmount = baseAmount
         }
         const priceWithoutFee = quoteAmount / baseAmount
         const baseVolumeUsd = baseAmount * marketInfo.baseAsset.usdPrice
