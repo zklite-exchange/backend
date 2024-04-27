@@ -48,7 +48,8 @@
     "tsconfig-paths": "^3.12.0",
     "typescript": "^4.5.5",
     "ws": "^8.2.2",
-    "zksync": "0.13.1"
+    "zksync": "0.13.1",
+    "moment": "^2.30.1"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.3",

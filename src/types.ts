@@ -37,6 +37,8 @@ export type ZZMarketSummary = {
   highestBid: number
   baseVolume: number
   quoteVolume: number
+  usdVolume24h: number
+  usdVolumeAll: number
   priceChange: number
   priceChangePercent_24h: number
   highestPrice_24h: number

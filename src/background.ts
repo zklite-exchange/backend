@@ -16,6 +16,7 @@ import {
   CMC_IDS
 } from './utils'
 import type { ZZMarketInfo, AnyObject, ZZMarket, ZZMarketSummary, ZZPastOrder } from './types'
+import moment from "moment";
 
 const NUMBER_OF_SNAPSHOT_POSITIONS = 200
 
@@ -658,6 +659,13 @@ async function updateLastPrices() {
 async function updateMarketSummarys() {
   console.time('updateMarketSummarys')
 
+  const marketVolume = await db.query(`SELECT * FROM sum_market_volume`)
+  const tradeCount24h = await db.query(`SELECT chainid, market, count(*) as count
+                FROM past_orders 
+                WHERE txtime > $1
+                GROUP BY (chainid, market)`,
+    [moment().subtract('1', 'd').toISOString()])
+
   const results0: Promise<any>[] = VALID_CHAINS.map(async (chainId) => {
     const redisKeyMarketSummary = `marketsummary:${chainId}`
     const redisKeyMarketSummaryUTC = `marketsummary:utc:${chainId}`
@@ -665,6 +673,7 @@ async function updateMarketSummarys() {
     // fetch needed data
     const redisVolumesQuote = await redis.HGETALL(`volume:${chainId}:quote`)
     const redisVolumesBase = await redis.HGETALL(`volume:${chainId}:base`)
+    const redisVolumesUsd = await redis.HGETALL(`volume:${chainId}:usd`)
     const redisPrices = await redis.HGETALL(`lastprices:${chainId}`)
     const redisPricesLow = await redis.HGETALL(`price:${chainId}:low`)
     const redisPricesHigh = await redis.HGETALL(`price:${chainId}:high`)
@@ -673,10 +682,9 @@ async function updateMarketSummarys() {
     const markets = await redis.SMEMBERS(`activemarkets:${chainId}`)
     const redisVolumesQuoteUTC = await redis.HGETALL(`volume:utc:${chainId}:quote`)
     const redisVolumesBaseUTC = await redis.HGETALL(`volume:utc:${chainId}:base`)
+    const redisVolumesUsdUTC = await redis.HGETALL(`volume:utc:${chainId}:usd`)
     const redisPricesLowUTC = await redis.HGETALL(`price:utc:${chainId}:low`)
     const redisPricesHighUTC = await redis.HGETALL(`price:utc:${chainId}:high`)
-    const redisNumberOfTrades = await redis.HGETALL(`tradecount:${chainId}`)
-    const redisNumberOfTradesUTC = await redis.HGETALL(`tradecount:utc:${chainId}`)
 
     const results1: Promise<any>[] = markets.map(async (marketId: ZZMarket) => {
       const marketInfo = await getMarketInfo(marketId, chainId).catch(() => null)
@@ -717,15 +725,19 @@ async function updateMarketSummarys() {
       // get volume
       const quoteVolume = Number(redisVolumesQuote[marketId] || 0)
       const baseVolume = Number(redisVolumesBase[marketId] || 0)
+      const usdVolume = Number(redisVolumesUsd[marketId] || 0)
       const quoteVolumeUTC = Number(redisVolumesQuoteUTC[marketId] || 0)
       const baseVolumeUTC = Number(redisVolumesBaseUTC[marketId] || 0)
+      const usdVolumeUTC = Number(redisVolumesUsdUTC[marketId] || 0)
 
       // get best ask/bid
       const lowestAsk = Number(formatPrice(redisBestAsk[marketId]))
       const highestBid = Number(formatPrice(redisBestBid[marketId]))
 
-      const numberOfTrades_24h = Number(redisNumberOfTrades[marketId] || 0)
-      const numberOfTrades_24hUTC = Number(redisNumberOfTradesUTC[marketId] || 0)
+      const numberOfTrades_24h = tradeCount24h.rows.find(it => it.chainid === chainId && it.market === marketId)?.count ?? 0
+      const numberOfTrades_24hUTC = numberOfTrades_24h
+
+      const totalVolume = marketVolume.rows.find(it => it.chainid === chainId && it.market === marketId)?.usd_volume ?? 0
 
       const marketSummary: ZZMarketSummary = {
         market: marketId,
@@ -736,6 +748,8 @@ async function updateMarketSummarys() {
         highestBid,
         baseVolume,
         quoteVolume,
+        usdVolume24h: usdVolume,
+        usdVolumeAll: totalVolume,
         priceChange,
         priceChangePercent_24h,
         highestPrice_24h,
@@ -751,6 +765,8 @@ async function updateMarketSummarys() {
         highestBid,
         baseVolume: baseVolumeUTC,
         quoteVolume: quoteVolumeUTC,
+        usdVolume24h: usdVolumeUTC,
+        usdVolumeAll: totalVolume,
         priceChange: priceChangeUTC,
         priceChangePercent_24h: priceChangePercent_24hUTC,
         highestPrice_24h: highestPrice_24hUTC,
