@@ -216,3 +216,43 @@ CREATE INDEX IF NOT EXISTS past_orders_maker_address                            
 CREATE INDEX IF NOT EXISTS past_orders_chainid_market_txtime                    ON past_orders(chainid, market, txtime);
 CREATE INDEX IF NOT EXISTS past_orders_market                                   ON past_orders(market);
 CREATE INDEX IF NOT EXISTS past_orders_txtime                                   ON past_orders(txtime);
+
+
+CREATE TABLE IF NOT EXISTS sum_market_volume (
+  id                 SERIAL          PRIMARY KEY,
+  chainid            INTEGER         NOT NULL,
+  market             TEXT            NOT NULL,
+  usd_volume         NUMERIC(32, 16) NOT NULL DEFAULT 0.0,
+  updated_at         TIMESTAMPTZ     NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS sum_market_volume_chainid_market ON sum_market_volume(chainid, market);
+
+CREATE OR REPLACE FUNCTION func_sum_market_volume()
+RETURNS trigger
+LANGUAGE PLPGSQL
+AS
+$BODY$
+BEGIN
+    INSERT INTO sum_market_volume (chainid, market, usd_volume)
+    VALUES (NEW.chainid, NEW.market, NEW.usd_notional)
+    ON CONFLICT (chainid, market)
+    DO UPDATE SET
+      usd_volume = sum_market_volume.usd_volume + NEW.usd_notional,
+      updated_at = NOW();
+
+    INSERT INTO sum_market_volume (chainid, market, usd_volume)
+    VALUES (NEW.chainid, 'all', NEW.usd_notional)
+    ON CONFLICT (chainid, market)
+    DO UPDATE SET
+      usd_volume = sum_market_volume.usd_volume + NEW.usd_notional,
+      updated_at = NOW();
+
+    RETURN NEW;
+END;
+$BODY$;
+
+CREATE OR REPLACE TRIGGER trigger_sum_market_volume
+AFTER INSERT ON past_orders
+FOR EACH ROW
+EXECUTE PROCEDURE func_sum_market_volume();
