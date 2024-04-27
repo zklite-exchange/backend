@@ -185,7 +185,7 @@ $$;
 -- CREATE INDEX IF NOT EXISTS past_orders_V3_market                                   ON past_orders_V3(market);
 -- CREATE INDEX IF NOT EXISTS past_orders_V3_txtime                                   ON past_orders_V3(txtime);
 
-CREATE TYPE OrderSide AS ENUM ('b', 's');
+/* CREATE TYPE OrderSide AS ENUM ('b', 's'); */
 
 CREATE TABLE IF NOT EXISTS past_orders (
   id                 SERIAL          PRIMARY KEY,

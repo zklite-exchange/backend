@@ -521,7 +521,14 @@ async function updateVolumes() {
 
   const midnight = new Date(new Date().setUTCHours(0, 0, 0, 0)).toISOString()
   const queryUTC = {
-    text: "SELECT chainid, market, SUM(amount) AS base_volume, SUM(amount * price) AS quote_volume FROM fills WHERE fill_status IN ('f', 'pf') AND insert_timestamp > $1 AND chainid IS NOT NULL GROUP BY (chainid, market)",
+    text: `SELECT 
+                chainid, market, 
+                SUM(base_amount) AS base_volume, 
+                SUM(quote_amount) AS quote_volume, 
+                SUM(usd_notional) AS usd_volume 
+                FROM past_orders 
+                WHERE chainid IS NOT NULL AND txtime > $1  
+                GROUP BY (chainid, market)`,
     values: [midnight],
   }
   const selectUTC = await db.query(queryUTC)
@@ -529,6 +536,7 @@ async function updateVolumes() {
     try {
       let quoteVolume = row.quote_volume.toPrecision(6)
       let baseVolume = row.base_volume.toPrecision(6)
+      let usdVolume = row.usd_volume.toPrecision(6)
       // Prevent exponential notation
       if (quoteVolume.includes('e')) {
         quoteVolume = row.quote_volume.toFixed(0)
@@ -536,10 +544,15 @@ async function updateVolumes() {
       if (baseVolume.includes('e')) {
         baseVolume = row.base_volume.toFixed(0)
       }
+      if (usdVolume.includes('e')) {
+        usdVolume = row.usd_volume.toFixed(0)
+      }
       const redisKeyBase = `volume:utc:${row.chainid}:base`
       const redisKeyQuote = `volume:utc:${row.chainid}:quote`
+      const redisKeyUsd = `volume:utc:${row.chainid}:usd`
       redis.HSET(redisKeyBase, row.market, baseVolume)
       redis.HSET(redisKeyQuote, row.market, quoteVolume)
+      redis.HSET(redisKeyUsd, row.market, usdVolume)
     } catch (err) {
       console.error(err)
       console.log('Could not update volumes')
@@ -548,7 +561,14 @@ async function updateVolumes() {
 
   const oneDayAgo = new Date(Date.now() - 86400 * 1000).toISOString()
   const query = {
-    text: "SELECT chainid, market, SUM(amount) AS base_volume, SUM(amount * price) AS quote_volume FROM fills WHERE fill_status IN ('f', 'pf') AND insert_timestamp > $1 AND chainid IS NOT NULL GROUP BY (chainid, market)",
+    text: `SELECT 
+                chainid, market, 
+                SUM(base_amount) AS base_volume, 
+                SUM(quote_amount) AS quote_volume, 
+                SUM(usd_notional) AS usd_volume 
+                FROM past_orders 
+                WHERE chainid IS NOT NULL AND txtime > $1  
+                GROUP BY (chainid, market)`,
     values: [oneDayAgo],
   }
   const select = await db.query(query)
@@ -556,6 +576,7 @@ async function updateVolumes() {
     try {
       let quoteVolume = row.quote_volume.toPrecision(6)
       let baseVolume = row.base_volume.toPrecision(6)
+      let usdVolume = row.usd_volume.toPrecision(6)
       // Prevent exponential notation
       if (quoteVolume.includes('e')) {
         quoteVolume = row.quote_volume.toFixed(0)
@@ -563,10 +584,15 @@ async function updateVolumes() {
       if (baseVolume.includes('e')) {
         baseVolume = row.base_volume.toFixed(0)
       }
+      if (usdVolume.includes('e')) {
+        usdVolume = row.usd_volume.toFixed(0)
+      }
       const redisKeyBase = `volume:${row.chainid}:base`
       const redisKeyQuote = `volume:${row.chainid}:quote`
+      const redisKeyUsd = `volume:${row.chainid}:usd`
       redis.HSET(redisKeyBase, row.market, baseVolume)
       redis.HSET(redisKeyQuote, row.market, quoteVolume)
+      redis.HSET(redisKeyUsd, row.market, usdVolume)
     } catch (err) {
       console.error(err)
       console.log('Could not update volumes')
