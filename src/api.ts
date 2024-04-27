@@ -454,16 +454,20 @@ export default class API extends EventEmitter {
     let fillPrice
     let side
     let makerUserId
+    let zktx: any
     try {
       const valuesOffers = [newstatus, txhash, chainId, orderid]
       update = await this.db.query(
-        "UPDATE offers SET order_status=$1, txhash=$2, update_timestamp=NOW() WHERE chainid=$3 AND id=$4 AND order_status IN ('b', 'm') RETURNING side, market, userid",
+        "UPDATE offers SET order_status=$1, txhash=$2, update_timestamp=NOW() WHERE chainid=$3 AND id=$4 AND order_status IN ('b', 'm', $1) RETURNING side, market, userid, zktx",
         valuesOffers
       )
       if (update.rows.length > 0) {
         side = update.rows[0].side
         market = update.rows[0].market
         userId = update.rows[0].userid
+        zktx = JSON.parse(update.rows[0].zktx)
+      } else {
+        return false
       }
     } catch (e) {
       console.error('Error while updateOrderFillStatus offers.')
@@ -485,8 +489,7 @@ export default class API extends EventEmitter {
           feeToken = marketInfo.quoteAsset.symbol
         }
       } else {
-        feeAmount = 0.5
-        feeToken = 'USDC'
+        return false
       }
 
       if (newstatus === 'r') {
@@ -500,8 +503,20 @@ export default class API extends EventEmitter {
         const fetchResult = await fetch(
           `${this.ZKSYNC_BASE_URL[network]}transactions/0x${txhash}/data`
         ).then((r: any) => r.json())
+        if (fetchResult.status !== "success" || fetchResult.result.tx.op.type !== "Swap") {
+          return false
+        }
+        if (fetchResult.result.tx.op.orders.find((it: any) => it.signature.signature === zktx.signature.signature) == null) {
+          return false
+        }
+
         let baseAmount: number
         let quoteAmount: number
+        let takerBuyToken: string
+        let takerSellToken: string
+        let takerBuyAmount: number
+        let takerSellAmount: number
+
         if (side === 's') {
           baseAmount = Number(
             ethers.utils.formatUnits(
@@ -516,6 +531,12 @@ export default class API extends EventEmitter {
               marketInfo.quoteAsset.decimals
             )
           )
+
+          takerSellToken = marketInfo.baseAsset.symbol
+          takerSellAmount = baseAmount
+
+          takerBuyToken = marketInfo.quoteAsset.symbol
+          takerBuyAmount = quoteAmount
         } else {
           baseAmount = Number(
             ethers.utils.formatUnits(
@@ -530,8 +551,37 @@ export default class API extends EventEmitter {
             )
           )
           quoteAmount -= marketInfo.quoteFee
+
+          takerSellToken = marketInfo.quoteAsset.symbol
+          takerSellAmount = quoteAmount
+
+          takerBuyToken = marketInfo.baseAsset.symbol
+          takerBuyAmount = baseAmount
         }
         const priceWithoutFee = quoteAmount / baseAmount
+        const baseVolumeUsd = baseAmount * marketInfo.baseAsset.usdPrice
+        const quoteVolumeUsd = quoteAmount * marketInfo.quoteAsset.usdPrice
+        const makerAddress: string = fetchResult.result.tx.op.submitterAddress
+        const takerAddress: string = zktx.recipient
+        const usdNotional = Math.max(baseVolumeUsd, quoteVolumeUsd)
+
+        await this.db.query(`INSERT INTO past_orders_V3 (
+                        txhash,
+                        market,
+                        chainid,
+                        taker_address,
+                        maker_address,
+                        taker_buy_token,
+                        taker_sell_token,
+                        taker_buy_amount,
+                        taker_sell_amount,
+                        taker_fee,
+                        taker_fee_token,
+                        usd_notional
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [
+            txhash, market, chainId, takerAddress, makerAddress, takerBuyToken, takerSellToken, takerBuyAmount,
+            takerSellAmount, feeAmount, feeToken, usdNotional])
 
         const valuesFills = [
           newstatus,
