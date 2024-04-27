@@ -465,7 +465,7 @@ async function cacheRecentTrades() {
 async function deleteOldOrders() {
   console.time('deleteOldOrders')
   await db.query(
-    "DELETE FROM offers WHERE order_status NOT IN ('o', 'pm', 'pf', 'b', 'm') AND update_timestamp < (NOW() - INTERVAL '10 MINUTES')"
+    "DELETE FROM offers WHERE order_status NOT IN ('o', 'pm', 'pf', 'b', 'm') AND update_timestamp < (NOW() - INTERVAL '100 DAYS')"
   )
   console.timeEnd('deleteOldOrders')
 }
@@ -801,7 +801,7 @@ async function start() {
   setInterval(updateFeesZkSync, 25000)
   setInterval(updatePriceHighLow, 30000)
   setInterval(updateVolumes, 30000)
-  setInterval(deleteOldOrders, 30000)
+  setInterval(deleteOldOrders, 60 * 60 * 1000)
 }
 
 start()
