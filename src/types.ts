@@ -91,8 +91,13 @@ export type ZZPastOrder = {
   transactionTime: number
 }
 
-export type RefereeStatus =
-  'new'
-  | 'in_review'
-  | 'rejected'
-  | 'rewarded'
+// eslint-disable-next-line no-shadow
+export enum RefereeStatus {
+  NEW = 'new',
+  IN_REVIEW = 'in_review',
+  REJECTED = 'rejected',
+  REWARDED = 'rewarded',
+}
+export const REF_CODE_ORGANIC = 'organic'
+export const REF_MIN_USD = 200
+export const REF_MIN_TRADE_COUNT = 3

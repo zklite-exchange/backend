@@ -15,7 +15,14 @@ import {
   sortMarketPair,
   CMC_IDS
 } from './utils'
-import type { ZZMarketInfo, AnyObject, ZZMarket, ZZMarketSummary, ZZPastOrder } from './types'
+import {
+  type ZZMarketInfo,
+  type AnyObject,
+  type ZZMarket,
+  type ZZMarketSummary,
+  type ZZPastOrder,
+  RefereeStatus, REF_CODE_ORGANIC, REF_MIN_USD, REF_MIN_TRADE_COUNT
+} from "./types";
 import moment from "moment";
 
 const NUMBER_OF_SNAPSHOT_POSITIONS = 200
@@ -783,6 +790,68 @@ async function updateMarketSummarys() {
   console.timeEnd('updateMarketSummarys')
 }
 
+let isRunningProcessAccVolume = false
+async function updateAccVolume() {
+  if (isRunningProcessAccVolume) return
+  isRunningProcessAccVolume = true
+  console.time('updateAccVolume')
+  let pastOrders
+  try {
+    const chainId = 1
+    const keyLastProceedPastOrderId = 'last_proceed_past_order_id'
+    const lastProceedPastOrderId = Number(await redis.HGET(`acc_vol_worker:${chainId}`, keyLastProceedPastOrderId) ?? 0)
+
+    pastOrders = await db.query(`
+      SELECT * FROM past_orders
+      WHERE chainid = $1 AND id > $2
+      ORDER BY id ASC LIMIT 100
+    `, [chainId, lastProceedPastOrderId])
+
+    if (pastOrders.rowCount <= 0) return
+
+    for (let i = 0; i < pastOrders.rows.length; i++) {
+      const row = pastOrders.rows[i]
+      const update = await db.query(`
+        INSERT INTO acc_volume 
+        (chainid, address, total_usd_vol, last_past_order_id,
+        ref_code, ref_status, total_trade_count)
+        VALUES ($1, $2, $3, $4, $5, $6, 1)
+        ON CONFLICT (chainid, address)
+        DO UPDATE SET
+          total_usd_vol = acc_volume.total_usd_vol + $3,
+          total_trade_count = acc_volume.total_trade_count + 1,
+          last_past_order_id = $4
+        WHERE acc_volume.last_past_order_id < $4
+        RETURNING id, ref_code, ref_status, total_usd_vol, total_trade_count
+      `, [
+        chainId, row.taker_address, row.usd_notional, row.id,
+        REF_CODE_ORGANIC, RefereeStatus.NEW])
+      if (update.rows.length) {
+        const acc = update.rows[0]
+        if (acc.ref_code !== REF_CODE_ORGANIC
+          && acc.ref_status === RefereeStatus.NEW
+          && acc.total_usd_vol >= REF_MIN_USD
+          && acc.total_trade_count >= REF_MIN_TRADE_COUNT) {
+          await db.query(`
+            UPDATE acc_volume SET ref_status = $2 WHERE id = $1 
+          `, [acc.id, RefereeStatus.IN_REVIEW])
+        }
+      } else {
+        console.warn(`Detect duplicate update acc_volume pass_order.id = ${row.id}`)
+      }
+    }
+    await redis.HSET(
+      `acc_vol_worker:${chainId}`, keyLastProceedPastOrderId,
+      `${pastOrders.rows[pastOrders.rows.length - 1].id}`)
+  } finally {
+    isRunningProcessAccVolume = false
+    if (pastOrders?.rowCount) {
+      console.log(`updateAccVolume proceed ${pastOrders?.rowCount} orders`)
+    }
+    console.timeEnd('updateAccVolume')
+  }
+}
+
 async function runDbMigration() {
   console.log('running db migration')
   const migration = fs.readFileSync('schema.sql', 'utf8')
@@ -844,6 +913,7 @@ async function start() {
   setInterval(updatePriceHighLow, 30000)
   setInterval(updateVolumes, 30000)
   setInterval(deleteOldOrders, 60 * 60 * 1000)
+  setInterval(updateAccVolume, 5000)
 }
 
 start()
