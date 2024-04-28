@@ -268,3 +268,22 @@ CREATE TABLE IF NOT EXISTS referrers (
 
 CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_address ON referrers(chainid, address);
 CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_code ON referrers(chainid, code);
+
+CREATE TABLE IF NOT EXISTS acc_volume (
+  id                     SERIAL          PRIMARY KEY,
+  chainid                INTEGER         NOT NULL,
+  address                TEXT            NOT NULL,
+  total_usd_vol          NUMERIC(32, 16) NOT NULL DEFAULT 0,
+  total_trade_count      INTEGER         NOT NULL DEFAULT 0,
+  last_past_order_id     INTEGER         NOT NULL DEFAULT 0,
+  ref_code               TEXT            NOT NULL,
+  ref_status             TEXT            NOT NULL,
+  ref_reject_reason      TEXT,
+  ref_reject_link        TEXT,
+  ref_rewarded_at        TIMESTAMP,
+  ref_rewarded_tx_link   TEXT,
+  created_at             TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS acc_volume_chainid_address ON acc_volume(chainid, address);
+CREATE        INDEX IF NOT EXISTS acc_volume_chainid_ref_code ON acc_volume(chainid, ref_code);

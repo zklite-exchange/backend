@@ -90,3 +90,9 @@ export type ZZPastOrder = {
   transactionHash: string
   transactionTime: number
 }
+
+export type RefereeStatus =
+  'new'
+  | 'in_review'
+  | 'rejected'
+  | 'rewarded'
