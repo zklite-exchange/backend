@@ -256,3 +256,15 @@ CREATE OR REPLACE TRIGGER trigger_sum_market_volume
 AFTER INSERT ON past_orders
 FOR EACH ROW
 EXECUTE PROCEDURE func_sum_market_volume();
+
+
+CREATE TABLE IF NOT EXISTS referrers (
+  id                 SERIAL          PRIMARY KEY,
+  chainid            INTEGER         NOT NULL,
+  address            TEXT            NOT NULL,
+  code               TEXT            NOT NULL,
+  created_at         TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_address ON referrers(chainid, address);
+CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_code ON referrers(chainid, code);
