@@ -25,7 +25,6 @@
       "camelcase": [1],
       "@typescript-eslint/no-explicit-any": [0],
       "no-console": [0],
-      "semi": [2, "never"],
       "quotes": [0, "single"],
       "import/prefer-default-export": [0],
       "react/jsx-filename-extension": ["warn", {

@@ -262,11 +262,11 @@ CREATE TABLE IF NOT EXISTS referrers (
   id                 SERIAL          PRIMARY KEY,
   chainid            INTEGER         NOT NULL,
   address            TEXT            NOT NULL,
-  code               TEXT            NOT NULL,
+  code               TEXT            NOT NULL CHECK (upper(code) = code),
   created_at         TIMESTAMP       NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_address ON referrers(chainid, address);
+CREATE        INDEX IF NOT EXISTS referrers_chainid_address_code ON referrers(chainid, address, code);
 CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_code ON referrers(chainid, code);
 
 CREATE TABLE IF NOT EXISTS acc_volume (
