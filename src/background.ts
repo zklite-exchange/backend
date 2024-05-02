@@ -123,7 +123,7 @@ async function updateUsdPrice() {
       }
       try {
         const usdPrice = fetchResult.data[token.toUpperCase()]?.find((it: any) => it.id === cmcId)?.quote?.USD?.price
-        if (!usdPrice || usdPrice <= 0) {
+        if (!Number.isFinite(usdPrice) || usdPrice <= 0) {
           console.error(`Can't find CMC quote for ${token}`)
           return
         }

@@ -544,8 +544,8 @@ export default class API extends EventEmitter {
           quoteAmount -= marketInfo.quoteFee
         }
         const priceWithoutFee = quoteAmount / baseAmount
-        const baseVolumeUsd = baseAmount * marketInfo.baseAsset.usdPrice
-        const quoteVolumeUsd = quoteAmount * marketInfo.quoteAsset.usdPrice
+        const baseVolumeUsd = baseAmount * (marketInfo.baseAsset.usdPrice || 0)
+        const quoteVolumeUsd = quoteAmount * (marketInfo.quoteAsset.usdPrice || 0)
         const makerAddress: string = fetchResult.result.tx.op.submitterAddress
         const takerAddress: string = zktx.recipient
         const usdNotional = Math.max(baseVolumeUsd, quoteVolumeUsd)
@@ -563,11 +563,14 @@ export default class API extends EventEmitter {
                         usd_notional,
                         taker_fee,
                         taker_fee_token,
-                        txtime
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                        txtime,
+                        base_usd_price,
+                        quote_usd_price
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             txhash, market, chainId, takerAddress, makerAddress, side,
-            baseAmount, quoteAmount, priceWithoutFee, usdNotional, feeAmount, feeToken, txTime])
+            baseAmount, quoteAmount, priceWithoutFee, usdNotional, feeAmount, feeToken, txTime,
+            marketInfo.baseAsset.usdPrice || 0, marketInfo.quoteAsset.usdPrice || 0])
 
         const valuesFills = [
           newstatus,

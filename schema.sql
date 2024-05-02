@@ -206,6 +206,9 @@ CREATE TABLE IF NOT EXISTS past_orders (
   txtime             TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
+ALTER TABLE past_orders ADD COLUMN IF NOT EXISTS base_usd_price NUMERIC(32, 16) DEFAULT 0;
+ALTER TABLE past_orders ADD COLUMN IF NOT EXISTS quote_usd_price NUMERIC(32, 16) DEFAULT 0;
+
 CREATE UNIQUE INDEX IF NOT EXISTS past_orders_txhash ON past_orders(txhash);
 CREATE INDEX IF NOT EXISTS past_orders_chainid                                  ON past_orders(chainid);
 CREATE INDEX IF NOT EXISTS past_orders_chainid_taker_address                    ON past_orders(chainid, taker_address);
