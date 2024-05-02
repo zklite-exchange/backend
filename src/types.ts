@@ -96,8 +96,11 @@ export enum RefereeStatus {
   NEW = 'new',
   IN_REVIEW = 'in_review',
   REJECTED = 'rejected',
-  REWARDED = 'rewarded',
+  APPROVED = 'approved',
 }
 export const REF_CODE_ORGANIC = 'organic'
+export const REF_ADDRESS_ORGANIC = '0xnull'
 export const REF_MIN_USD = 200
 export const REF_MIN_TRADE_COUNT = 3
+export const REF_VOL_COMMISSION_RATE = 0.1 / 100
+export const REF_VOL_COMMISSION_MAX = 100

@@ -4,6 +4,7 @@ import fetch from 'isomorphic-fetch'
 import { ethers } from 'ethers'
 import * as zksync from 'zksync'
 import fs from 'fs'
+import moment from "moment";
 import { redis, publisher } from './redisClient'
 import db from './db'
 import {
@@ -21,9 +22,14 @@ import {
   type ZZMarket,
   type ZZMarketSummary,
   type ZZPastOrder,
-  RefereeStatus, REF_CODE_ORGANIC, REF_MIN_USD, REF_MIN_TRADE_COUNT
+  RefereeStatus,
+  REF_CODE_ORGANIC,
+  REF_MIN_USD,
+  REF_MIN_TRADE_COUNT,
+  REF_VOL_COMMISSION_RATE,
+  REF_VOL_COMMISSION_MAX,
+  REF_ADDRESS_ORGANIC
 } from "./types";
-import moment from "moment";
 
 const NUMBER_OF_SNAPSHOT_POSITIONS = 200
 
@@ -798,7 +804,7 @@ async function updateAccVolume() {
   let pastOrders
   try {
     const chainId = 1
-    const keyLastProceedPastOrderId = 'last_proceed_past_order_id'
+    const keyLastProceedPastOrderId = 'last_proceed_past_order_id2'
     const lastProceedPastOrderId = Number(await redis.HGET(`acc_vol_worker:${chainId}`, keyLastProceedPastOrderId) ?? 0)
 
     pastOrders = await db.query(`
@@ -811,21 +817,30 @@ async function updateAccVolume() {
 
     for (let i = 0; i < pastOrders.rows.length; i++) {
       const row = pastOrders.rows[i]
+      const refCommission = Math.min(
+        row.usd_notional * REF_VOL_COMMISSION_RATE,
+        REF_VOL_COMMISSION_MAX
+      )
+      const tableName = 'acc_volume2'
       const update = await db.query(`
-        INSERT INTO acc_volume 
+        INSERT INTO ${tableName} 
         (chainid, address, total_usd_vol, last_past_order_id,
-        ref_code, ref_status, total_trade_count)
-        VALUES ($1, $2, $3, $4, $5, $6, 1)
+        ref_address, ref_code, ref_status, ref_commission,
+        total_trade_count)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
         ON CONFLICT (chainid, address)
         DO UPDATE SET
-          total_usd_vol = acc_volume.total_usd_vol + $3,
-          total_trade_count = acc_volume.total_trade_count + 1,
+          total_usd_vol = ${tableName}.total_usd_vol + $3,
+          total_trade_count = ${tableName}.total_trade_count + 1,
+          ref_commission = LEAST(${tableName}.ref_commission + $8, ${REF_VOL_COMMISSION_MAX}),
           last_past_order_id = $4
-        WHERE acc_volume.last_past_order_id < $4
+        WHERE ${tableName}.last_past_order_id < $4
         RETURNING id, ref_code, ref_status, total_usd_vol, total_trade_count
       `, [
         chainId, row.taker_address, row.usd_notional, row.id,
-        REF_CODE_ORGANIC, RefereeStatus.NEW])
+        REF_ADDRESS_ORGANIC, REF_CODE_ORGANIC, RefereeStatus.NEW,
+        refCommission
+      ])
       if (update.rows.length) {
         const acc = update.rows[0]
         if (acc.ref_code !== REF_CODE_ORGANIC
