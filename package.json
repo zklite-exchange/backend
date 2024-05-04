@@ -24,6 +24,7 @@
   "homepage": "https://github.com/zigzag/backend#readme",
   "dependencies": {
     "@ethersproject/logger": "^5.4.0",
+    "@sentry/node": "^7.113.0",
     "@telegraf/entity": "^0.5.0",
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^4.17.13",

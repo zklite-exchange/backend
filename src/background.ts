@@ -5,6 +5,9 @@ import { ethers } from 'ethers'
 import * as zksync from 'zksync'
 import fs from 'fs'
 import moment from "moment";
+import * as Sentry from "@sentry/node"
+
+import { launchTgBot } from "./tg";
 import { redis, publisher } from './redisClient'
 import db from './db'
 import {
@@ -30,6 +33,10 @@ import {
   REF_VOL_COMMISSION_MAX,
   REF_ADDRESS_ORGANIC
 } from "./types";
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN
+})
 
 const NUMBER_OF_SNAPSHOT_POSITIONS = 200
 
@@ -929,6 +936,8 @@ async function start() {
   setInterval(updateVolumes, 30000)
   setInterval(deleteOldOrders, 60 * 60 * 1000)
   setInterval(updateAccVolume, 5000)
+
+  launchTgBot()
 }
 
 start()

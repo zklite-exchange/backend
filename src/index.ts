@@ -6,6 +6,11 @@ import { redis, subscriber, publisher } from 'src/redisClient'
 import db from 'src/db'
 import API from 'src/api'
 import type { RedisClientType } from 'redis'
+import * as Sentry from "@sentry/node"
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN
+})
 
 const socketServer = createSocketServer()
 const httpServer = createHttpServer(socketServer)

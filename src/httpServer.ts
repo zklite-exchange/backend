@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 import express from 'express'
+import * as Sentry from "@sentry/node"
 import cookieParser from 'cookie-parser'
 import { createServer } from 'http'
 import type { WebSocket, WebSocketServer } from 'ws'
@@ -11,7 +12,7 @@ import zzRoutes from 'src/routes/zz'
 export const createHttpServer = (socketServer: WebSocketServer): ZZHttpServer => {
   const expressApp = express() as any as ZZHttpServer
   const server = createServer(expressApp)
-
+  expressApp.use(Sentry.Handlers.requestHandler());
   expressApp.use('/', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*')
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
@@ -80,6 +81,7 @@ export const createHttpServer = (socketServer: WebSocketServer): ZZHttpServer =>
   cgRoutes(expressApp)
   zzRoutes(expressApp)
 
+  expressApp.use(Sentry.Handlers.errorHandler());
   expressApp.listen = (...args: any) => server.listen(...args)
 
   return expressApp
