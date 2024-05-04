@@ -357,7 +357,7 @@ export default function zzRoutes(app: ZZHttpServer) {
       const update = await db.query(`
           UPDATE referrers SET click_count = referrers.click_count + 1 
           WHERE code = $1 RETURNING click_count
-        `, [newRefCode.toUpperCase()]);
+        `, [newRefCode]);
       if (update.rowCount > 0) {
         result.refCode = newRefCode;
 

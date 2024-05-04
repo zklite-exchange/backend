@@ -97,7 +97,7 @@ export async function launchTgBot() {
           return;
         }
         const isTaken = refCode === REF_CODE_ORGANIC ||
-          (await db.query('SELECT 1 FROM referrers WHERE code = $1', [refCode.toUpperCase()]))
+          (await db.query('SELECT 1 FROM referrers WHERE code = $1', [refCode]))
             .rowCount > 0
         if (isTaken) {
           ctx.replyWithMarkdownV2("Your `REF_CODE` is taken, please choose another one");
@@ -122,7 +122,7 @@ export async function launchTgBot() {
         try {
           await db.query(`
             INSERT INTO referrers (chainid, address, code, tg_chat_id) VALUES ($1, $2, $3, $4)
-          `, [1, address, refCode.toUpperCase(), `${chatId}`]);
+          `, [1, address, refCode, `${chatId}`]);
           ctx.reply("Create Referral link successfully, your link is:\n" +
             `https://zklite.io?referrer=${refCode}\n\n` +
             `Your reward will be sent to: ${address}\n\n` +
@@ -160,8 +160,7 @@ export async function launchTgBot() {
 
 
 export async function notifyReferrer(refCode: string, msg: string | FmtString, extra?: ExtraReplyMessage) {
-  if (!refCode) return
-  const chatId = (await db.query(`SELECT tg_chat_id FROM referrers where code = $1`, [refCode.toUpperCase()]))
+  const chatId = (await db.query(`SELECT tg_chat_id FROM referrers where code = $1`, [refCode]))
     .rows[0]?.tg_chat_id
   if (!chatId) return
   await bot.telegram.sendMessage(Number(chatId), msg, extra)
