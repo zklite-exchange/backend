@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS citext;
+
 CREATE TABLE IF NOT EXISTS offers (
     id                SERIAL         PRIMARY KEY,
     userid            TEXT,
@@ -192,8 +194,8 @@ CREATE TABLE IF NOT EXISTS past_orders (
   txhash             TEXT            NOT NULL,
   market             TEXT            NOT NULL,
   chainid            INTEGER         NOT NULL,
-  taker_address      TEXT            NOT NULL,
-  maker_address      TEXT            NOT NULL,
+  taker_address      CITEXT          NOT NULL,
+  maker_address      CITEXT          NOT NULL,
   side               OrderSide       NOT NULL,
   base_amount        NUMERIC(32, 16) NOT NULL,
   quote_amount       NUMERIC(32, 16) NOT NULL,
@@ -264,8 +266,8 @@ EXECUTE PROCEDURE func_sum_market_volume();
 CREATE TABLE IF NOT EXISTS referrers (
   id                 SERIAL          PRIMARY KEY,
   chainid            INTEGER         NOT NULL,
-  address            TEXT            NOT NULL,
-  code               TEXT            NOT NULL CHECK (upper(code) = code),
+  address            CITEXT          NOT NULL,
+  code               CITEXT          NOT NULL,
   created_at         TIMESTAMP       NOT NULL DEFAULT NOW()
 );
 
@@ -276,15 +278,15 @@ CREATE        INDEX IF NOT EXISTS referrers_chainid_address_code ON referrers(ch
 CREATE UNIQUE INDEX IF NOT EXISTS referrers_code ON referrers(code);
 CREATE        INDEX IF NOT EXISTS referrers_tg_chat_id ON referrers(tg_chat_id);
 
-CREATE TABLE IF NOT EXISTS acc_volume2 (
+CREATE TABLE IF NOT EXISTS account_volume (
   id                      SERIAL          PRIMARY KEY,
   chainid                 INTEGER         NOT NULL,
-  address                 TEXT            NOT NULL,
+  address                 CITEXT          NOT NULL,
   total_usd_vol           NUMERIC(32, 16) NOT NULL DEFAULT 0,
   total_trade_count       INTEGER         NOT NULL DEFAULT 0,
   last_past_order_id      INTEGER         NOT NULL DEFAULT 0,
-  ref_address             TEXT            NOT NULL,
-  ref_code                TEXT            NOT NULL,
+  ref_address             CITEXT          NOT NULL,
+  ref_code                CITEXT          NOT NULL,
   ref_status              TEXT            NOT NULL,
   ref_reject_reason       TEXT,
   ref_reject_link         TEXT,
@@ -294,8 +296,9 @@ CREATE TABLE IF NOT EXISTS acc_volume2 (
   created_at              TIMESTAMP       NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS acc_volume2_chainid_address ON acc_volume2(chainid, address);
-CREATE        INDEX IF NOT EXISTS acc_volume2_chainid_ref_code ON acc_volume2(chainid, ref_code);
+CREATE UNIQUE INDEX IF NOT EXISTS account_volume_chainid_address ON account_volume(chainid, address);
+CREATE        INDEX IF NOT EXISTS account_volume_chainid_ref_code ON account_volume(chainid, ref_code);
+CREATE        INDEX IF NOT EXISTS account_volume_chainid_ref_address ON account_volume(chainid, ref_address);
 
 CREATE TABLE IF NOT EXISTS devices (
   id                    SERIAL          PRIMARY KEY,

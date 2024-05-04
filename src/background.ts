@@ -811,7 +811,7 @@ async function updateAccVolume() {
   let pastOrders
   try {
     const chainId = 1
-    const keyLastProceedPastOrderId = 'last_proceed_past_order_id2'
+    const keyLastProceedPastOrderId = 'last_proceed_past_order_id3'
     const lastProceedPastOrderId = Number(await redis.HGET(`acc_vol_worker:${chainId}`, keyLastProceedPastOrderId) ?? 0)
 
     pastOrders = await db.query(`
@@ -828,7 +828,7 @@ async function updateAccVolume() {
         row.usd_notional * REF_VOL_COMMISSION_RATE,
         REF_VOL_COMMISSION_MAX
       )
-      const tableName = 'acc_volume2'
+      const tableName = 'account_volume'
       const update = await db.query(`
         INSERT INTO ${tableName} 
         (chainid, address, total_usd_vol, last_past_order_id,
