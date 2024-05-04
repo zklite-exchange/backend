@@ -1768,19 +1768,30 @@ export default class API extends EventEmitter {
     const numberMMs = Object.keys(this.MAKER_CONNECTIONS).length
     console.log(
       `Active WS connections: USER_CONNECTIONS: ${numberUsers}, MAKER_CONNECTIONS: ${numberMMs}`
-    )
-      ; (this.wss.clients as Set<WSocket>).forEach((ws) => {
-        if (!ws.isAlive) {
-          const userconnkey = `${ws.chainId}:${ws.userId}`
-          const mmConnKey = `${ws.chainId}:${ws.uuid}`
-          delete this.USER_CONNECTIONS[userconnkey]
-          delete this.MAKER_CONNECTIONS[mmConnKey]
-          ws.terminate()
-        } else {
-          ws.isAlive = false
-          ws.ping()
-        }
-      })
+    );
+    (this.wss.clients as Set<WSocket>).forEach((ws) => {
+      if (!ws.isAlive) {
+        const userconnkey = `${ws.chainId}:${ws.userId}`;
+        const mmConnKey = `${ws.chainId}:${ws.uuid}`;
+        delete this.USER_CONNECTIONS[userconnkey];
+        delete this.MAKER_CONNECTIONS[mmConnKey];
+        ws.terminate();
+      } else {
+        ws.isAlive = false;
+        ws.ping();
+      }
+    });
+
+    Object.entries(this.USER_CONNECTIONS).forEach(([key, ws]) => {
+      if ((ws as WSocket).readyState >= WebSocket.CLOSING) {
+        delete this.USER_CONNECTIONS[key]
+      }
+    })
+    Object.entries(this.MAKER_CONNECTIONS).forEach(([key, ws]) => {
+      if ((ws as WSocket).readyState >= WebSocket.CLOSING) {
+        delete this.MAKER_CONNECTIONS[key]
+      }
+    })
 
     console.log(`${this.wss.clients.size} active connections.`)
   }
