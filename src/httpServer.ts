@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 import express from 'express'
+import cookieParser from 'cookie-parser'
 import { createServer } from 'http'
 import type { WebSocket, WebSocketServer } from 'ws'
 import type { ZZHttpServer } from 'src/types'
@@ -31,6 +32,7 @@ export const createHttpServer = (socketServer: WebSocketServer): ZZHttpServer =>
   ]
 
   expressApp.use(express.json())
+  expressApp.use(cookieParser() as any)
 
   expressApp.post('/', async (req, res) => {
     if (req.headers['content-type'] !== 'application/json') {

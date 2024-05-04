@@ -269,8 +269,12 @@ CREATE TABLE IF NOT EXISTS referrers (
   created_at         TIMESTAMP       NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE referrers ADD COLUMN IF NOT EXISTS click_count INTEGER DEFAULT 0;
+ALTER TABLE referrers ADD COLUMN IF NOT EXISTS tg_chat_id  TEXT;
+
 CREATE        INDEX IF NOT EXISTS referrers_chainid_address_code ON referrers(chainid, address, code);
-CREATE UNIQUE INDEX IF NOT EXISTS referrers_chainid_code ON referrers(chainid, code);
+CREATE UNIQUE INDEX IF NOT EXISTS referrers_code ON referrers(code);
+CREATE        INDEX IF NOT EXISTS referrers_tg_chat_id ON referrers(tg_chat_id);
 
 CREATE TABLE IF NOT EXISTS acc_volume2 (
   id                      SERIAL          PRIMARY KEY,
@@ -292,3 +296,13 @@ CREATE TABLE IF NOT EXISTS acc_volume2 (
 
 CREATE UNIQUE INDEX IF NOT EXISTS acc_volume2_chainid_address ON acc_volume2(chainid, address);
 CREATE        INDEX IF NOT EXISTS acc_volume2_chainid_ref_code ON acc_volume2(chainid, ref_code);
+
+CREATE TABLE IF NOT EXISTS devices (
+  id                    SERIAL          PRIMARY KEY,
+  alias                 TEXT            NOT NULL,
+  user_agent            TEXT            NOT NULL,
+  created_at            TIMESTAMP       NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS devices_alias ON devices(alias);
+

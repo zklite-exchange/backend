@@ -3,6 +3,11 @@ import * as console from "console";
 import { redis } from "src/redisClient";
 import db from "src/db";
 import { REF_CODE_ORGANIC } from "src/types";
+import { RE_REF_CODE } from "src/utils";
+import type { ExtraReplyMessage } from "telegraf/typings/telegram-types";
+import { bold, code, fmt, type FmtString, link } from "telegraf/format";
+
+const bot = new Telegraf(process.env.TG_BOT_TOKEN as string);
 
 const commandDesc = [{
   command: "/help",
@@ -13,6 +18,9 @@ const commandDesc = [{
 }, {
   command: "/ref_add",
   description: "Register a new Referral link"
+}, {
+  command: "/ref_links",
+  description: "View your Referral links"
 }];
 
 const CONTEXT_TYPE_REF_ADD = "ref_add";
@@ -33,7 +41,6 @@ async function getConversationContext(chatId: number): Promise<TgConversationCon
 }
 
 export async function launchTgBot() {
-  const bot = new Telegraf(process.env.TG_BOT_TOKEN as string);
   bot.start((ctx) => ctx.reply("👋 Welcome, I'm zkLite Exchange Chatbot! /help to see available commands. \nzklite.io"));
   bot.help(async (ctx) => {
     await updateConversationContext(ctx.chat.id, null);
@@ -51,6 +58,20 @@ export async function launchTgBot() {
       console.error(e, "/ref_add error");
     }
   });
+  bot.command("ref_links", async (ctx) => {
+    const chatId = ctx.chat.id;
+    const query = await db.query(`SELECT * FROM referrers WHERE tg_chat_id = $1 ORDER BY click_count DESC`, [`${chatId}`])
+    if (query.rowCount === 0) {
+      ctx.reply('You haven\'t created any referral links.\nYou can create one by /ref_add')
+      return
+    }
+    let msg = fmt`${bold`(Click count) - Referral links`}`
+    for (let i = 0; i < query.rows.length; i++) {
+      const row = query.rows[i]
+      msg = fmt`${msg}\n(${row.click_count}) - ${code`https://zklite.io/?referrer=${row.code}`}`
+    }
+    ctx.reply(msg)
+  })
   bot.command('noti', async (ctx) => {
     await updateConversationContext(ctx.chat.id, null);
     ctx.reply('Sorry this command is still in development!')
@@ -94,15 +115,14 @@ export async function launchTgBot() {
           return;
         }
         await updateConversationContext(chatId, null);
-        if (!/^[a-zA-Z0-9_]{5,15}$/.test(refCode)) {
+        if (!RE_REF_CODE.test(refCode)) {
           ctx.reply("Something went wrong!");
           return;
         }
         try {
           await db.query(`
-            INSERT INTO referrers (chainid, address, code) VALUES ($1, $2, $3)
-          `, [1, address, refCode.toUpperCase()]);
-          await redis.HSET('tg_chat_ids:1', `referrer_code:${refCode.toUpperCase()}`, `${chatId}`)
+            INSERT INTO referrers (chainid, address, code, tg_chat_id) VALUES ($1, $2, $3, $4)
+          `, [1, address, refCode.toUpperCase(), `${chatId}`]);
           ctx.reply("Create Referral link successfully, your link is:\n" +
             `https://zklite.io?referrer=${refCode}\n\n` +
             `Your reward will be sent to: ${address}\n\n` +
@@ -136,4 +156,13 @@ export async function launchTgBot() {
 
   process.once("SIGINT", () => bot.stop("SIGINT"));
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
+}
+
+
+export async function notifyReferrer(refCode: string, msg: string | FmtString, extra?: ExtraReplyMessage) {
+  if (!refCode) return
+  const chatId = (await db.query(`SELECT tg_chat_id FROM referrers where code = $1`, [refCode.toUpperCase()]))
+    .rows[0]?.tg_chat_id
+  if (!chatId) return
+  await bot.telegram.sendMessage(Number(chatId), msg, extra)
 }

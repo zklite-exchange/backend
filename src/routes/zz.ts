@@ -1,4 +1,12 @@
-import type { ZZHttpServer, ZZMarket, ZZMarketInfo, ZZMarketSummary } from 'src/types'
+import type { AnyObject, ZZHttpServer, ZZMarket, ZZMarketInfo, ZZMarketSummary } from "src/types";
+import db from "src/db";
+import { customAlphabet, urlAlphabet } from "nanoid";
+import moment from "moment";
+import { RE_REF_CODE } from "src/utils";
+import { notifyReferrer } from "src/tg";
+import { bold, code, fmt } from "telegraf/format";
+
+const genDeviceAlias = customAlphabet(urlAlphabet, 15)
 
 export default function zzRoutes(app: ZZHttpServer) {
   const defaultChainId = process.env.DEFAULT_CHAIN_ID ? Number(process.env.DEFAULT_CHAIN_ID) : 1
@@ -322,4 +330,52 @@ export default function zzRoutes(app: ZZHttpServer) {
     await Promise.all(results)
     res.json(marketInfos)
   })
+
+  app.post("/api/v1/referral/reg_device", async (req, res) => {
+    const result = {
+      deviceAlias: req.cookies.deviceAlias,
+      refCode: req.cookies.refCode,
+    }
+
+    if (!result.deviceAlias) {
+      const newDeviceAlias = genDeviceAlias();
+      await db.query(
+        `INSERT INTO devices (alias, user_agent) VALUES ($1, $2)`,
+        [newDeviceAlias, req.header('user-agent')]);
+      result.deviceAlias = newDeviceAlias;
+    }
+
+
+    res.cookie('deviceAlias', result.deviceAlias, {
+      expires: new Date(moment().add(10, 'years').toDate()),
+      path: '/',
+      domain: '.zklite.io'
+    })
+
+    const newRefCode = req.body.refCode;
+    if (newRefCode && newRefCode !== result.refCode && RE_REF_CODE.test(req.body.refCode)) {
+      const update = await db.query(`
+          UPDATE referrers SET click_count = referrers.click_count + 1 
+          WHERE code = $1 RETURNING click_count
+        `, [newRefCode.toUpperCase()]);
+      if (update.rowCount > 0) {
+        result.refCode = newRefCode;
+
+        if (update.rows[0].click_count === 2) {
+          const msg = fmt`🎉 Your referral link is working (REF_CODE: ${code`${newRefCode}`}), someone just opened it in a browser.
+/ref_links to view stats of your referral links.`
+          notifyReferrer(newRefCode, msg)
+        }
+      }
+    }
+
+    if (result.refCode) {
+      res.cookie('refCode', result.refCode, {
+        expires: new Date(moment().add(10, 'years').toDate()),
+        path: '/',
+        domain: '.zklite.io'
+      })
+    }
+    res.status(200).send(result);
+  });
 }

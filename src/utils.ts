@@ -132,6 +132,8 @@ export function sortMarketPair(tokenInputA: string, tokenInputB: string): string
   return `${tokenInputB.toLowerCase()}-${tokenInputA.toLowerCase()}`
 }
 
+export const RE_REF_CODE = /^[a-zA-Z0-9_]{5,15}$/
+
 export const CMC_IDS: Record<string, number> = {
   "BTC": 1,
   "ETH":  1027,
