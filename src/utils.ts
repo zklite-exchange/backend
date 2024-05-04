@@ -1,6 +1,8 @@
 import * as starknet from 'starknet'
-import { ethers } from 'ethers'
+import * as Sentry from '@sentry/node'
+import { type BytesLike, ethers } from "ethers";
 import { randomBytes } from 'crypto'
+import { addRequestDataToEvent } from "@sentry/node";
 
 export function formatPrice(input: any) {
   const inputNumber = Number(input)
@@ -157,4 +159,22 @@ export const CMC_IDS: Record<string, number> = {
   "ENS": 13855,
   "SHIB": 5994,
   "ZZ": 20755,
+}
+
+export function captureError(error: any, details: {tags?: Record<string, any>, req?: any, [key: string]: any} = {}): boolean {
+  Sentry.withScope(scope => {
+    if (details?.tags) {
+      scope.setTags(details.tags)
+      delete details.tags;
+    }
+    if (details?.req) {
+      const {req} = details;
+      delete details.req;
+      scope.addEventProcessor(event => Sentry.addRequestDataToEvent(event, req))
+    }
+
+    if (details) scope.setExtras(details)
+    scope.captureException(error)
+  })
+  return false
 }
