@@ -3,9 +3,11 @@ import * as console from "console";
 import { redis } from "src/redisClient";
 import db from "src/db";
 import { REF_CODE_ORGANIC } from "src/types";
-import { RE_REF_CODE } from "src/utils";
+import { captureError, RE_REF_CODE } from "src/utils";
 import type { ExtraReplyMessage } from "telegraf/typings/telegram-types";
-import { bold, code, fmt, type FmtString, link } from "telegraf/format";
+import { bold, code, fmt, type FmtString, italic, link } from "telegraf/format";
+import * as Markup from "telegraf/markup";
+import fetch from "isomorphic-fetch";
 
 const bot = new Telegraf(process.env.TG_BOT_TOKEN as string);
 
@@ -107,14 +109,32 @@ export async function launchTgBot() {
           type: CONTEXT_TYPE_REF_ADD,
           refCode
         });
-        ctx.reply("Please enter your zkSync Lite wallet address, your reward will be sent to this address");
+        ctx.reply(fmt`Please enter your ${bold`zkSync Lite`} wallet address, your reward will be sent to this address.\n${
+          italic`(you should use a single wallet address for all your referral links)`
+        }`);
       } else {
         const address = ctx.text;
         if (!address || !/^0x[a-fA-F0-9]{40}/.test(address)) {
           ctx.reply("This is not a valid zkSync Lite address, please type again");
           return;
         }
+
         await updateConversationContext(chatId, null);
+
+        try {
+          const accountPubKeyHash = await fetch(`https://api.zksync.io/api/v0.2/accounts/${address}`)
+            .then((r: any) => r.json())
+            .then((data: any) => data.result?.committed?.pubKeyHash)
+          if (!accountPubKeyHash) {
+            ctx.reply("This address doesn't exist on zkSync Lite (missing pubKey), please set pubKey or use another address.")
+            return
+          }
+        } catch (e) {
+          captureError(e, {address})
+          ctx.reply("Something went wrong!");
+          return
+        }
+        
         if (!RE_REF_CODE.test(refCode)) {
           ctx.reply("Something went wrong!");
           return;
