@@ -165,3 +165,8 @@ export async function notifyReferrer(refCode: string, msg: string | FmtString, e
   if (!chatId) return
   await bot.telegram.sendMessage(Number(chatId), msg, extra)
 }
+
+export async function notifyReferrerNewRef(refCode: string) {
+  const msg = fmt`🎉 A new address has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`
+  notifyReferrer(refCode, msg)
+}

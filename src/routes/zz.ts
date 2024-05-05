@@ -1,10 +1,23 @@
-import type { AnyObject, ZZHttpServer, ZZMarket, ZZMarketInfo, ZZMarketSummary } from "src/types";
+import {
+  type AnyObject,
+  RefereeStatus,
+  type ZZHttpServer,
+  type ZZMarket,
+  type ZZMarketInfo,
+  type ZZMarketSummary
+} from "src/types";
 import db from "src/db";
 import { customAlphabet, urlAlphabet } from "nanoid";
+import * as zksync from "zksync";
 import moment from "moment";
-import { RE_REF_CODE } from "src/utils";
-import { notifyReferrer } from "src/tg";
+import * as zks from 'zksync-crypto'
+import { captureError, RE_REF_CODE } from "src/utils";
+import { notifyReferrer, notifyReferrerNewRef } from "src/tg";
 import { bold, code, fmt } from "telegraf/format";
+import { hexlify } from "ethers/lib/utils";
+import fetch from "isomorphic-fetch";
+import { redis } from "src/redisClient";
+import { captureException } from "@sentry/node";
 
 const genDeviceAlias = customAlphabet(urlAlphabet, 15)
 
@@ -378,4 +391,86 @@ export default function zzRoutes(app: ZZHttpServer) {
     }
     res.status(200).send(result);
   });
+
+  app.post("/api/v1/referral/zksync_lite", async (req, res) => {
+    const { refCode, address, pubKey, signature } = req.body;
+
+    const shouldRetry = true
+
+    const referrerAddress = RE_REF_CODE.test(refCode ?? "")
+      ? (await db.query(`SELECT address FROM referrers WHERE code = $1`, [refCode]))
+        .rows[0]?.address
+      : undefined;
+    if (!referrerAddress) {
+      res.status(400).send({message: 'Invalid refCode'})
+      return
+    }
+    if (referrerAddress.toLowerCase() === address.toLowerCase()) {
+      res.status(400).send({message: 'Can\'t refer yourself'})
+      return
+    }
+
+    const checkExisting = await db.query(`SELECT ref_address FROM account_volume WHERE chainid = 1 AND address = $1`, [address])
+    if (checkExisting.rowCount > 0) {
+      const existing = checkExisting.rows[0]
+      if (existing.ref_address?.toLowerCase() === referrerAddress.toLowerCase()) {
+        // already assigned to this referrer
+        res.status(200).send({})
+      } else {
+        res.status(400).send({message: 'Account address has been referred by other source.'})
+      }
+      return
+    }
+
+    if (!address || !pubKey || !signature) {
+      res.status(400).send({message: 'Invalid post data', shouldRetry})
+      return
+    }
+
+    const msg = `${refCode}-${address}`
+    const msgBytes = zksync.utils.getSignedBytesFromMessage(msg, false)
+    const valid = zks.verify_musig(msgBytes, Uint8Array.from(Buffer.from(pubKey + signature, 'hex')))
+    if (!valid) {
+      res.status(400).send({message: 'Invalid signature', shouldRetry})
+      return
+    }
+    const pubKeyHash = `sync:${hexlify(zks.pubKeyHash(Buffer.from(pubKey, 'hex'))).replace('0x', '')}`
+    const accountPubKeyHash = await fetch(`https://api.zksync.io/api/v0.2/accounts/${address}`)
+      .then((r: any) => r.json())
+      .then((data: any) => data.result?.committed?.pubKeyHash)
+    const pendingRefRedisKey = `pending_ref:1:${address.toLowerCase()}`
+    if (pubKeyHash !== accountPubKeyHash) {
+      if (accountPubKeyHash) {
+        res.status(400).send({message: 'Invalid pubic key', shouldRetry})
+        return
+      }
+      // account didn't set public key yet, remember it on redis
+      await redis.HSET(pendingRefRedisKey, pubKey, JSON.stringify({
+        refCode, signature, pubKeyHash
+      }))
+      await redis.EXPIRE(pendingRefRedisKey, moment.duration(30, 'd').asSeconds())
+      res.status(200).send({})
+      return
+    }
+
+    try {
+      await db.query(`
+        INSERT INTO account_volume (chainid, address, ref_address, ref_code, ref_status)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [1, address, referrerAddress, refCode, RefereeStatus.NEW])
+    } catch (e: any) {
+      if (e.message?.includes("account_volume_chainid_address")) {
+        res.status(400).send({message: 'Account address has been referred by other source.'})
+      } else {
+        captureError(e, {referrerAddress, refCode, req})
+        res.status(500).send({message: 'Unknown error'})
+      }
+      return
+    }
+
+    console.log(`Register ref code ${refCode} ${address} success`)
+    notifyReferrerNewRef(refCode)
+    redis.DEL(pendingRefRedisKey).catch()
+    res.status(200).send({})
+  })
 }
