@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import './env'
 import fetch from 'isomorphic-fetch'
 import { ethers } from 'ethers'
 import * as zksync from 'zksync'

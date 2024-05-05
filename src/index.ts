@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: BUSL-1.1
+import './env'
 import { createHttpServer } from 'src/httpServer'
 import { createSocketServer } from 'src/socketServer'
 import { redis, subscriber, publisher } from 'src/redisClient'
