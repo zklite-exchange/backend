@@ -14,7 +14,7 @@ export const createHttpServer = (socketServer: WebSocketServer): ZZHttpServer =>
   const server = createServer(expressApp)
   expressApp.use(Sentry.Handlers.requestHandler());
   expressApp.use('/', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*')
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*')
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
     res.header('Access-Control-Allow-Methods', 'GET, POST')
     next()
