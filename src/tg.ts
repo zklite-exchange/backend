@@ -32,6 +32,15 @@ type TgConversationContext = {
   [key: string]: any
 }
 
+export function concatFmt(...fmts: (string | FmtString)[]): FmtString {
+  if (fmts.length <= 0) return fmt``
+  let res = fmt`${fmts[0]}`
+  for (let i = 1; i < fmts.length; i++) {
+    res = fmt`${res}${fmts[i]}`
+  }
+  return res
+}
+
 function updateConversationContext(chatId: number, data: TgConversationContext | null) {
   if (data == null) return redis.DEL(`tg_context:${chatId}`);
   return redis.SET(`tg_context:${chatId}`, JSON.stringify(data), { EX: 15 * 60 });
@@ -52,11 +61,14 @@ export async function launchTgBot() {
   });
   bot.command("ref_add", async (ctx) => {
     try {
-      await ctx.replyWithMarkdownV2("Your Referral link will be:\n" +
-        "`https://zklite.io/?referrer=REF_CODE`\n\n" +
-        "Please enter your `REF_CODE` \\(only alphabet characters, numbers, and \\_ are valid\\)");
+      await ctx.reply(concatFmt(
+        fmt`Please enter your ${code`REF_CODE`} (only alphabet characters, numbers, and _ are valid)\n\n`,
+        "Your Referral link will be:\n",
+        code`https://zklite.io/?referrer=REF_CODE`,
+      ))
       await updateConversationContext(ctx.chat.id, { type: CONTEXT_TYPE_REF_ADD });
     } catch (e) {
+      captureError(e)
       console.error(e, "/ref_add error");
     }
   });
@@ -126,7 +138,9 @@ export async function launchTgBot() {
             .then((r: any) => r.json())
             .then((data: any) => data.result?.committed?.pubKeyHash)
           if (!accountPubKeyHash) {
-            ctx.reply("This address doesn't exist on zkSync Lite (missing pubKey), please set pubKey or use another address.")
+            ctx.reply(fmt`This ${
+              link('address', `https://zkscan.io/explorer/accounts/${address}`)
+            } doesn't exist on zkSync Lite (missing pubKey), please set pubKey or use another address.`)
             return
           }
         } catch (e) {
@@ -134,7 +148,7 @@ export async function launchTgBot() {
           ctx.reply("Something went wrong!");
           return
         }
-        
+
         if (!RE_REF_CODE.test(refCode)) {
           ctx.reply("Something went wrong!");
           return;
@@ -143,15 +157,17 @@ export async function launchTgBot() {
           await db.query(`
             INSERT INTO referrers (chainid, address, code, tg_chat_id) VALUES ($1, $2, $3, $4)
           `, [1, address, refCode, `${chatId}`]);
-          ctx.reply("Create Referral link successfully, your link is:\n" +
-            `https://zklite.io?referrer=${refCode}\n\n` +
-            `Your reward will be sent to: ${address}\n\n` +
-            "Please read the Referral program documents for the prize, terms and conditions::\n" +
-            "https://docs.zklite.io/referral-program#heres-how-it-works", {
+          ctx.reply(concatFmt(
+            "Create Referral link successfully, your link is:\n",
+            `https://zklite.io?referrer=${refCode}\n\n`,
+            fmt`Your reward will be sent to: ${link(address, `https://zkscan.io/explorer/accounts/${address}`)}\n\n`,
+            "Please read the Referral program documents for the prize, terms and conditions:\n",
+            "https://docs.zklite.io/referral-program#heres-how-it-works"
+          ), {
             link_preview_options: {
               is_disabled: true
             }
-          });
+          })
         } catch (e: any) {
           if (e.message?.includes("referrers_chainid_code")) {
             ctx.reply(`Error, your REF_CODE (${refCode}) is already taken, please try /ref_add again!`);
@@ -190,3 +206,4 @@ export async function notifyReferrerNewRef(refCode: string) {
   const msg = fmt`🎉 A new address has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`
   notifyReferrer(refCode, msg)
 }
+

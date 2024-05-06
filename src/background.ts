@@ -941,4 +941,7 @@ async function start() {
   launchTgBot()
 }
 
+process.once("SIGINT", () => setTimeout(() => process.exit(0), 3000));
+process.once("SIGTERM", () => process.exit(1));
+
 start()
