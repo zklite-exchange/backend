@@ -22,6 +22,7 @@ CREATE INDEX IF NOT EXISTS offers_order_status_by_market_idx ON offers(chainid, 
 
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS txhash TEXT;
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS token TEXT; 
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS ref_code TEXT;
 
 CREATE TABLE IF NOT EXISTS fills (
   id                 SERIAL          PRIMARY KEY,
@@ -210,6 +211,8 @@ CREATE TABLE IF NOT EXISTS past_orders (
 
 ALTER TABLE past_orders ADD COLUMN IF NOT EXISTS base_usd_price NUMERIC(32, 16) DEFAULT 0;
 ALTER TABLE past_orders ADD COLUMN IF NOT EXISTS quote_usd_price NUMERIC(32, 16) DEFAULT 0;
+ALTER TABLE past_orders ADD COLUMN IF NOT EXISTS ref_code TEXT;
+ALTER TABLE past_orders ADD COLUMN IF NOT EXISTS ref_address TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS past_orders_txhash ON past_orders(txhash);
 CREATE INDEX IF NOT EXISTS past_orders_chainid                                  ON past_orders(chainid);

@@ -29,8 +29,8 @@ import {
   getNetwork,
   getRPCURL,
   getERC20Info,
-  getNewToken,
-} from 'src/utils'
+  getNewToken, RE_REF_CODE
+} from "src/utils";
 import {
   getEvmEIP712Types,
   modifyOldSignature,
@@ -455,10 +455,12 @@ export default class API extends EventEmitter {
     let side
     let makerUserId
     let zktx: any
+    let refCode
+    let refAddress
     try {
       const valuesOffers = [newstatus, txhash, chainId, orderid]
       update = await this.db.query(
-        "UPDATE offers SET order_status=$1, txhash=$2, update_timestamp=NOW() WHERE chainid=$3 AND id=$4 AND order_status IN ('b', 'm', $1) RETURNING side, market, userid, zktx",
+        "UPDATE offers SET order_status=$1, txhash=$2, update_timestamp=NOW() WHERE chainid=$3 AND id=$4 AND order_status IN ('b', 'm', $1) RETURNING side, market, userid, zktx, ref_code",
         valuesOffers
       )
       if (update.rows.length > 0) {
@@ -466,6 +468,12 @@ export default class API extends EventEmitter {
         market = update.rows[0].market
         userId = update.rows[0].userid
         zktx = JSON.parse(update.rows[0].zktx)
+        refCode = update.rows[0].ref_code
+        if (refCode) {
+          refAddress = (await this.db.query(`SELECT address FROM referrers WHERE chainid = $1 AND code = $2`, [1, refCode]))
+            .rows[0]?.address
+          if (!refAddress) refCode = undefined;
+        }
       } else {
         return false
       }
@@ -565,12 +573,16 @@ export default class API extends EventEmitter {
                         taker_fee_token,
                         txtime,
                         base_usd_price,
-                        quote_usd_price
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                        quote_usd_price,
+                        ref_code,
+                        ref_address
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
           [
             txhash, market, chainId, takerAddress, makerAddress, side,
             baseAmount, quoteAmount, priceWithoutFee, usdNotional, feeAmount, feeToken, txTime,
-            marketInfo.baseAsset.usdPrice || 0, marketInfo.quoteAsset.usdPrice || 0])
+            marketInfo.baseAsset.usdPrice || 0, marketInfo.quoteAsset.usdPrice || 0,
+            refCode, refAddress
+          ])
 
         const valuesFills = [
           newstatus,
@@ -668,9 +680,11 @@ export default class API extends EventEmitter {
   processorderzksync = async (
     chainId: number,
     market: ZZMarket,
-    zktx: ZkTx
+    zktx: ZkTx,
+    refCode?: string
   ) => {
     chainId = Number(chainId)
+    refCode = refCode && RE_REF_CODE.test(refCode) ? refCode : undefined;
 
     const inputValidation = zksyncOrderSchema.validate(zktx)
     if (inputValidation.error) throw inputValidation.error
@@ -749,10 +763,11 @@ export default class API extends EventEmitter {
       JSON.stringify(zktx),
       baseQuantity,
       token,
+      refCode
     ]
     // save order to DB
     const query =
-      'INSERT INTO offers(chainid, userid, nonce, market, side, price, base_quantity, quote_quantity, order_type, order_status, expires, zktx, insert_timestamp, unfilled, token) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14) RETURNING id'
+      'INSERT INTO offers(chainid, userid, nonce, market, side, price, base_quantity, quote_quantity, order_type, order_status, expires, zktx, insert_timestamp, unfilled, token, ref_code) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15) RETURNING id'
     const insert = await this.db.query(query, queryargs)
     const orderId = insert.rows[0].id
     const orderreceipt = [
