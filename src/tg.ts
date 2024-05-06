@@ -140,7 +140,9 @@ export async function launchTgBot() {
           if (!accountPubKeyHash) {
             ctx.reply(fmt`This ${
               link('address', `https://zkscan.io/explorer/accounts/${address}`)
-            } doesn't exist on zkSync Lite (missing pubKey), please set pubKey or use another address.`)
+            } doesn't exist on zkSync Lite (missing pubKey), please set pubKey or use another address.`, {
+              link_preview_options: {is_disabled: true}
+            })
             return
           }
         } catch (e) {
@@ -202,8 +204,14 @@ export async function notifyReferrer(refCode: string, msg: string | FmtString, e
   await bot.telegram.sendMessage(Number(chatId), msg, extra)
 }
 
-export async function notifyReferrerNewRef(refCode: string) {
-  const msg = fmt`🎉 A new address has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`
-  notifyReferrer(refCode, msg)
+export async function notifyReferrerNewRef(refCode: string, address: string) {
+  const msg = fmt`🎉 A new ${
+    link(address, `https://zkscan.io/explorer/accounts/${address}`)
+  } has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`
+  notifyReferrer(refCode, msg, {
+    link_preview_options: {
+      is_disabled: true
+    }
+  })
 }
 

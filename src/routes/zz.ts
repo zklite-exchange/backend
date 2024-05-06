@@ -469,7 +469,7 @@ export default function zzRoutes(app: ZZHttpServer) {
     }
 
     console.log(`Register ref code ${refCode} ${address} success`)
-    notifyReferrerNewRef(refCode)
+    notifyReferrerNewRef(refCode, address)
     redis.DEL(pendingRefRedisKey).catch()
     res.status(200).send({})
   })

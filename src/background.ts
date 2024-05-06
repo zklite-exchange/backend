@@ -8,7 +8,7 @@ import fs from 'fs'
 import moment from "moment";
 import * as Sentry from "@sentry/node"
 
-import { launchTgBot } from "./tg";
+import { launchTgBot, notifyReferrerNewRef } from "./tg";
 import { redis, publisher } from './redisClient'
 import db from './db'
 import {
@@ -829,13 +829,20 @@ async function updateAccVolume() {
         row.usd_notional * REF_VOL_COMMISSION_RATE,
         REF_VOL_COMMISSION_MAX
       )
+      let refAddress = row.ref_address
+      let refCode = row.ref_code
+      if (!refAddress || !refCode) {
+        refAddress = REF_ADDRESS_ORGANIC
+        refCode = REF_CODE_ORGANIC
+      }
+      const createdAt = moment()
       const tableName = 'account_volume'
       const update = await db.query(`
         INSERT INTO ${tableName} 
         (chainid, address, total_usd_vol, last_past_order_id,
         ref_address, ref_code, ref_status, ref_commission,
-        total_trade_count)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+        total_trade_count, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9)
         ON CONFLICT (chainid, address)
         DO UPDATE SET
           total_usd_vol = ${tableName}.total_usd_vol + $3,
@@ -843,11 +850,11 @@ async function updateAccVolume() {
           ref_commission = LEAST(${tableName}.ref_commission + $8, ${REF_VOL_COMMISSION_MAX}),
           last_past_order_id = $4
         WHERE ${tableName}.last_past_order_id < $4
-        RETURNING id, ref_code, ref_status, total_usd_vol, total_trade_count
+        RETURNING id, ref_code, ref_status, total_usd_vol, total_trade_count, created_at
       `, [
         chainId, row.taker_address, row.usd_notional, row.id,
-        REF_ADDRESS_ORGANIC, REF_CODE_ORGANIC, RefereeStatus.NEW,
-        refCommission
+        refAddress, refCode, RefereeStatus.NEW,
+        refCommission, createdAt.toISOString()
       ])
       if (update.rows.length) {
         const acc = update.rows[0]
@@ -858,6 +865,9 @@ async function updateAccVolume() {
           await db.query(`
             UPDATE acc_volume SET ref_status = $2 WHERE id = $1 
           `, [acc.id, RefereeStatus.IN_REVIEW])
+        }
+        if (refCode !== REF_CODE_ORGANIC && moment(acc.created_at).isSame(createdAt)) {
+          notifyReferrerNewRef(refCode, row.taker_address)
         }
       } else {
         console.warn(`Detect duplicate update acc_volume pass_order.id = ${row.id}`)
