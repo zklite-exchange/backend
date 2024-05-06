@@ -518,6 +518,21 @@ export default class API extends EventEmitter {
           return false
         }
 
+        if (!refCode) {
+          const pendingRefKey = `pending_ref:1:${zktx.recipient.toLowerCase()}`;
+          let pendingRef: any = await this.redis.HGET(pendingRefKey, zktx.signature.pubKey).catch()
+          if (pendingRef) {
+            this.redis.DEL(pendingRef).catch()
+            pendingRef = JSON.parse(pendingRef)
+            refCode = pendingRef.refCode
+            refAddress = pendingRef.referrerAddress
+            if (!refCode || !refAddress) {
+              refCode = undefined;
+              refAddress = undefined;
+            }
+          }
+        }
+
         let baseAmount: number
         let quoteAmount: number
 

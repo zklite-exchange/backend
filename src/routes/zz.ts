@@ -446,7 +446,7 @@ export default function zzRoutes(app: ZZHttpServer) {
       }
       // account didn't set public key yet, remember it on redis
       await redis.HSET(pendingRefRedisKey, pubKey, JSON.stringify({
-        refCode, signature, pubKeyHash
+        refCode, signature, pubKeyHash, referrerAddress
       }))
       await redis.EXPIRE(pendingRefRedisKey, moment.duration(30, 'd').asSeconds())
       res.status(200).send({})
