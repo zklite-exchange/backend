@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS referrers (
   chainid            INTEGER         NOT NULL,
   address            CITEXT          NOT NULL,
   code               CITEXT          NOT NULL,
-  created_at         TIMESTAMP       NOT NULL DEFAULT NOW()
+  created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE referrers ADD COLUMN IF NOT EXISTS click_count INTEGER DEFAULT 0;
@@ -295,8 +295,8 @@ CREATE TABLE IF NOT EXISTS account_volume (
   ref_reject_link         TEXT,
   ref_commission          NUMERIC(32, 16) NOT NULL DEFAULT 0, -- accumulated commission in USD
   ref_paid_commission     NUMERIC(32, 16) NOT NULL DEFAULT 0,
-  ref_paid_commission_at  TIMESTAMP       NOT NULL DEFAULT NOW(),
-  created_at              TIMESTAMP       NOT NULL DEFAULT NOW()
+  ref_paid_commission_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+  created_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS account_volume_chainid_address ON account_volume(chainid, address);
@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS devices (
   id                    SERIAL          PRIMARY KEY,
   alias                 TEXT            NOT NULL,
   user_agent            TEXT            NOT NULL,
-  created_at            TIMESTAMP       NOT NULL DEFAULT NOW()
+  created_at            TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS devices_alias ON devices(alias);
