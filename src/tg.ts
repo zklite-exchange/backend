@@ -6,7 +6,6 @@ import { REF_CODE_ORGANIC } from "src/types";
 import { captureError, RE_REF_CODE } from "src/utils";
 import type { ExtraReplyMessage } from "telegraf/typings/telegram-types";
 import { bold, code, fmt, type FmtString, italic, link } from "telegraf/format";
-import * as Markup from "telegraf/markup";
 import fetch from "isomorphic-fetch";
 
 const bot = new Telegraf(process.env.TG_BOT_TOKEN as string);
@@ -33,12 +32,12 @@ type TgConversationContext = {
 }
 
 export function concatFmt(...fmts: (string | FmtString)[]): FmtString {
-  if (fmts.length <= 0) return fmt``
-  let res = fmt`${fmts[0]}`
+  if (fmts.length <= 0) return fmt``;
+  let res = fmt`${fmts[0]}`;
   for (let i = 1; i < fmts.length; i++) {
-    res = fmt`${res}${fmts[i]}`
+    res = fmt`${res}${fmts[i]}`;
   }
-  return res
+  return res;
 }
 
 function updateConversationContext(chatId: number, data: TgConversationContext | null) {
@@ -64,37 +63,37 @@ export async function launchTgBot() {
       await ctx.reply(concatFmt(
         fmt`Please enter your ${code`REF_CODE`} (only alphabet characters, numbers, and _ are valid)\n\n`,
         "Your Referral link will be:\n",
-        code`https://zklite.io/?referrer=REF_CODE`,
-      ))
+        code`https://zklite.io/?referrer=REF_CODE`
+      ));
       await updateConversationContext(ctx.chat.id, { type: CONTEXT_TYPE_REF_ADD });
     } catch (e) {
-      captureError(e)
+      captureError(e);
       console.error(e, "/ref_add error");
     }
   });
   bot.command("ref_links", async (ctx) => {
     const chatId = ctx.chat.id;
-    const query = await db.query(`SELECT * FROM referrers WHERE tg_chat_id = $1 ORDER BY click_count DESC`, [`${chatId}`])
+    const query = await db.query(`SELECT * FROM referrers WHERE tg_chat_id = $1 ORDER BY click_count DESC`, [`${chatId}`]);
     if (query.rowCount === 0) {
-      ctx.reply('You haven\'t created any referral links.\nYou can create one by /ref_add')
-      return
+      ctx.reply("You haven't created any referral links.\nYou can create one by /ref_add");
+      return;
     }
-    let msg = fmt`${bold`(Click count) - Referral links`}`
+    let msg = fmt`${bold`(Click count) - Referral links`}`;
     for (let i = 0; i < query.rows.length; i++) {
-      const row = query.rows[i]
-      msg = fmt`${msg}\n(${row.click_count}) - ${code`https://zklite.io/?referrer=${row.code}`}`
+      const row = query.rows[i];
+      msg = fmt`${msg}\n(${row.click_count}) - ${code`https://zklite.io/?referrer=${row.code}`}`;
     }
-    ctx.reply(msg)
-  })
-  bot.command('noti', async (ctx) => {
+    ctx.reply(msg);
+  });
+  bot.command("noti", async (ctx) => {
     await updateConversationContext(ctx.chat.id, null);
-    ctx.reply('Sorry this command is still in development!')
-  })
+    ctx.reply("Sorry this command is still in development!");
+  });
   bot.on("message", async (ctx) => {
     const chatId = ctx.chat.id;
     const conversationContext = await getConversationContext(chatId);
     if (conversationContext?.type === CONTEXT_TYPE_REF_ADD) {
-      let {refCode} = conversationContext;
+      let { refCode } = conversationContext;
       if (refCode == null) {
         refCode = ctx.text;
         if (!refCode) return;
@@ -111,8 +110,8 @@ export async function launchTgBot() {
           return;
         }
         const isTaken = refCode === REF_CODE_ORGANIC ||
-          (await db.query('SELECT 1 FROM referrers WHERE code = $1', [refCode]))
-            .rowCount > 0
+          (await db.query("SELECT 1 FROM referrers WHERE code = $1", [refCode]))
+            .rowCount > 0;
         if (isTaken) {
           ctx.replyWithMarkdownV2("Your `REF_CODE` is taken, please choose another one");
           return;
@@ -136,19 +135,19 @@ export async function launchTgBot() {
         try {
           const accountPubKeyHash = await fetch(`https://api.zksync.io/api/v0.2/accounts/${address}`)
             .then((r: any) => r.json())
-            .then((data: any) => data.result?.committed?.pubKeyHash)
+            .then((data: any) => data.result?.committed?.pubKeyHash);
           if (!accountPubKeyHash) {
             ctx.reply(fmt`This ${
-              link('address', `https://zkscan.io/explorer/accounts/${address}`)
+              link("address", `https://zkscan.io/explorer/accounts/${address}`)
             } doesn't exist on zkSync Lite (missing pubKey), please set pubKey or use another address.`, {
-              link_preview_options: {is_disabled: true}
-            })
-            return
+              link_preview_options: { is_disabled: true }
+            });
+            return;
           }
         } catch (e) {
-          captureError(e, {address})
+          captureError(e, { address });
           ctx.reply("Something went wrong!");
-          return
+          return;
         }
 
         if (!RE_REF_CODE.test(refCode)) {
@@ -169,7 +168,7 @@ export async function launchTgBot() {
             link_preview_options: {
               is_disabled: true
             }
-          })
+          });
         } catch (e: any) {
           if (e.message?.includes("referrers_chainid_code")) {
             ctx.reply(`Error, your REF_CODE (${refCode}) is already taken, please try /ref_add again!`);
@@ -206,7 +205,7 @@ export async function notifyReferrer(refCode: string, msg: string | FmtString, e
 
 export async function notifyReferrerNewRef(refCode: string, address: string) {
   const msg = fmt`🎉 A new ${
-    link(address, `https://zkscan.io/explorer/accounts/${address}`)
+    link('address', `https://zkscan.io/explorer/accounts/${address}`)
   } has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`
   notifyReferrer(refCode, msg, {
     link_preview_options: {
