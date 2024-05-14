@@ -265,21 +265,83 @@ AFTER INSERT ON past_orders
 FOR EACH ROW
 EXECUTE PROCEDURE func_sum_market_volume();
 
-
 CREATE TABLE IF NOT EXISTS referrers (
   id                 SERIAL          PRIMARY KEY,
   chainid            INTEGER         NOT NULL,
   address            CITEXT          NOT NULL,
   code               CITEXT          NOT NULL,
+  click_count        INTEGER         DEFAULT 0,
   created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE referrers ADD COLUMN IF NOT EXISTS click_count INTEGER DEFAULT 0;
-ALTER TABLE referrers ADD COLUMN IF NOT EXISTS tg_chat_id  TEXT;
-
 CREATE        INDEX IF NOT EXISTS referrers_chainid_address_code ON referrers(chainid, address, code);
 CREATE UNIQUE INDEX IF NOT EXISTS referrers_code ON referrers(code);
-CREATE        INDEX IF NOT EXISTS referrers_tg_chat_id ON referrers(tg_chat_id);
+
+CREATE TABLE IF NOT EXISTS referees (
+  id                 SERIAL          PRIMARY KEY,
+  chainid            INTEGER         NOT NULL,
+  address            CITEXT          NOT NULL,
+  ref_code           CITEXT          NOT NULL,
+  ref_address        CITEXT          NOT NULL,
+  status             TEXT            NOT NULL,
+  created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS referees_chainid_address ON referees(chainid,address);
+CREATE        INDEX IF NOT EXISTS referees_chainid_ref_address ON referees(chainid,ref_address);
+CREATE        INDEX IF NOT EXISTS referees_ref_code ON referees(ref_code);
+
+
+CREATE TABLE IF NOT EXISTS referee_status_log (
+  id                 SERIAL          PRIMARY KEY,
+  referee_id         INTEGER         NOT NULL,
+  old_status         TEXT            NOT NULL,
+  new_status         TEXT            NOT NULL,
+  reason             TEXT,
+  created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS referee_status_log_referee_id ON referee_status_log(referee_id);
+
+CREATE TABLE IF NOT EXISTS referral_commissions (
+    id                            SERIAL          PRIMARY KEY,
+    chainid                       INTEGER         NOT NULL,
+    address                       CITEXT          NOT NULL,
+    ref_address                   CITEXT          NOT NULL,
+    commission                    NUMERIC(32, 16) NOT NULL,
+    source_type                   TEXT            NOT NULL,
+    past_order_id                 INTEGER,
+    commission_rate               NUMERIC(32, 16),
+    status_log_id                 INTEGER,
+    created_at                    TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE        INDEX IF NOT EXISTS referral_commissions_chainid_address ON referral_commissions(chainid,address);
+CREATE UNIQUE INDEX IF NOT EXISTS referral_commissions_approval ON referral_commissions(chainid,address) WHERE source_type = 'ref_approve';
+CREATE UNIQUE INDEX IF NOT EXISTS referral_commissions_past_order_id ON referral_commissions(past_order_id) WHERE past_order_id is NOT NULL;
+CREATE        INDEX IF NOT EXISTS referral_commissions_chainid_ref_address ON referral_commissions(chainid,ref_address);
+
+
+CREATE TABLE IF NOT EXISTS device2noti (
+    id                 SERIAL          PRIMARY KEY,
+    device_id          TEXT            NOT NULL,
+    tg_id              TEXT            NOT NULL,
+    created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS device2noti_device_id_tg_id ON device2noti(device_id, tg_id);
+CREATE        INDEX IF NOT EXISTS device2noti_tg_id ON device2noti(tg_id);
+
+CREATE TABLE IF NOT EXISTS address2device (
+    id                 SERIAL          PRIMARY KEY,
+    chainid            INTEGER         NOT NULL,
+    address            CITEXT          NOT NULL,
+    device_id          TEXT            NOT NULL,
+    created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS address2device_chainid_address_device_id ON address2device(chainid, address, device_id);
+CREATE        INDEX IF NOT EXISTS address2device_device_id ON address2device(device_id);
 
 CREATE TABLE IF NOT EXISTS account_volume (
   id                      SERIAL          PRIMARY KEY,
@@ -288,20 +350,10 @@ CREATE TABLE IF NOT EXISTS account_volume (
   total_usd_vol           NUMERIC(32, 16) NOT NULL DEFAULT 0,
   total_trade_count       INTEGER         NOT NULL DEFAULT 0,
   last_past_order_id      INTEGER         NOT NULL DEFAULT 0,
-  ref_address             CITEXT          NOT NULL,
-  ref_code                CITEXT          NOT NULL,
-  ref_status              TEXT            NOT NULL,
-  ref_reject_reason       TEXT,
-  ref_reject_link         TEXT,
-  ref_commission          NUMERIC(32, 16) NOT NULL DEFAULT 0, -- accumulated commission in USD
-  ref_paid_commission     NUMERIC(32, 16) NOT NULL DEFAULT 0,
-  ref_paid_commission_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
   created_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS account_volume_chainid_address ON account_volume(chainid, address);
-CREATE        INDEX IF NOT EXISTS account_volume_chainid_ref_code ON account_volume(chainid, ref_code);
-CREATE        INDEX IF NOT EXISTS account_volume_chainid_ref_address ON account_volume(chainid, ref_address);
 
 CREATE TABLE IF NOT EXISTS devices (
   id                    SERIAL          PRIMARY KEY,
