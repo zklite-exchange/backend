@@ -12,7 +12,7 @@ import * as zksync from "zksync";
 import moment from "moment";
 import * as zks from 'zksync-crypto'
 import { captureError, RE_REF_CODE } from "src/utils";
-import { notifyReferrer, notifyReferrerNewRef } from "src/tg";
+import { notifyReferrerNewRef, notifyUser } from "src/tg";
 import { bold, code, fmt } from "telegraf/format";
 import { hexlify } from "ethers/lib/utils";
 import fetch from "isomorphic-fetch";
@@ -369,7 +369,7 @@ export default function zzRoutes(app: ZZHttpServer) {
     if (newRefCode && newRefCode !== result.refCode && RE_REF_CODE.test(req.body.refCode)) {
       const update = await db.query(`
           UPDATE referrers SET click_count = referrers.click_count + 1 
-          WHERE code = $1 RETURNING click_count
+          WHERE code = $1 RETURNING *
         `, [newRefCode]);
       if (update.rowCount > 0) {
         result.refCode = newRefCode;
@@ -377,7 +377,10 @@ export default function zzRoutes(app: ZZHttpServer) {
         if (update.rows[0].click_count === 2) {
           const msg = fmt`🎉 Your referral link is working (REF_CODE: ${code`${newRefCode}`}), someone just opened it in a browser.
 /ref_links to view stats of your referral links.`
-          notifyReferrer(newRefCode, msg)
+          notifyUser(msg, {
+            chainId: update.rows[0].chainid,
+            address: update.rows[0].address,
+          })
         }
       }
     }
@@ -410,14 +413,14 @@ export default function zzRoutes(app: ZZHttpServer) {
       return
     }
 
-    const checkExisting = await db.query(`SELECT ref_address FROM account_volume WHERE chainid = 1 AND address = $1`, [address])
+    const checkExisting = await db.query(`SELECT ref_address FROM referees WHERE chainid = 1 AND address = $1`, [address])
     if (checkExisting.rowCount > 0) {
       const existing = checkExisting.rows[0]
-      if (existing.ref_address?.toLowerCase() === referrerAddress.toLowerCase()) {
+      if (existing.ref_address.toLowerCase() === referrerAddress.toLowerCase()) {
         // already assigned to this referrer
         res.status(200).send({})
       } else {
-        res.status(400).send({message: 'Account address has been referred by other source.'})
+        res.status(400).send({message: 'Account address has been referred by other.'})
       }
       return
     }
@@ -454,13 +457,14 @@ export default function zzRoutes(app: ZZHttpServer) {
     }
 
     try {
+      const isOld = (await db.query(`SELECT 1 FROM past_orders where chainid = 1 AND taker_address = $1 LIMIT 1`, [address])).rowCount > 0
       await db.query(`
-        INSERT INTO account_volume (chainid, address, ref_address, ref_code, ref_status)
+        INSERT INTO referees (chainid, address, ref_address, ref_code, ref_status)
         VALUES ($1, $2, $3, $4, $5)
-      `, [1, address, referrerAddress, refCode, RefereeStatus.NEW])
+      `, [1, address, referrerAddress, refCode, isOld ? RefereeStatus.OLD : RefereeStatus.NEW])
     } catch (e: any) {
-      if (e.message?.includes("account_volume_chainid_address")) {
-        res.status(400).send({message: 'Account address has been referred by other source.'})
+      if (e.message?.includes("referees_chainid_address")) {
+        res.status(400).send({message: 'Account address has been referred by other.'})
       } else {
         captureError(e, {referrerAddress, refCode, req})
         res.status(500).send({message: 'Unknown error'})
@@ -469,7 +473,7 @@ export default function zzRoutes(app: ZZHttpServer) {
     }
 
     console.log(`Register ref code ${refCode} ${address} success`)
-    notifyReferrerNewRef(refCode, address)
+    notifyReferrerNewRef(1, referrerAddress, refCode, address)
     redis.DEL(pendingRefRedisKey).catch()
     res.status(200).send({})
   })

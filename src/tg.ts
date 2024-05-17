@@ -195,22 +195,34 @@ export async function launchTgBot() {
   process.once("SIGTERM", () => bot.stop("SIGTERM"));
 }
 
+type UserAndMsgOpts = {
+  chainId?: number, address?: string,
+  deviceId?: string
+} & ExtraReplyMessage;
 
-export async function notifyReferrer(refCode: string, msg: string | FmtString, extra?: ExtraReplyMessage) {
-  const chatId = (await db.query(`SELECT tg_chat_id FROM referrers where code = $1`, [refCode]))
-    .rows[0]?.tg_chat_id
-  if (!chatId) return
-  await bot.telegram.sendMessage(Number(chatId), msg, extra)
+export async function notifyUser(msg: string | FmtString, opts: UserAndMsgOpts) {
+  if (!opts || !opts.chainId && !opts.address && !opts.deviceId) {
+    return;
+  }
+  const queryRes = await db.query(`
+    SELECT DISTINCT tg_id FROM device2noti
+    INNER JOIN address2device
+    ON address2device.device_id = device2noti.device_id
+    WHERE (address2device.chainid = $1 AND address2device.address = $2) OR (address2device.device_id = $3)) 
+  `, [opts.chainId, opts.address, opts.deviceId]);
+  for (let i = 0; i < queryRes.rows.length; i++) {
+    const chatId = queryRes.rows[i].tg_id;
+    if (!chatId) return;
+    await bot.telegram.sendMessage(Number(chatId), msg, opts);
+  }
 }
 
-export async function notifyReferrerNewRef(refCode: string, address: string) {
+export async function notifyReferrerNewRef(chainId: number, referrerAddress: string, refCode: string, address: string) {
   const msg = fmt`🎉 A new ${
-    link('address', `https://zkscan.io/explorer/accounts/${address}`)
-  } has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`
-  notifyReferrer(refCode, msg, {
-    link_preview_options: {
-      is_disabled: true
-    }
-  })
+    link("address", `https://zkscan.io/explorer/accounts/${address}`)
+  } has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`;
+  notifyUser(msg, {
+    chainId, address: referrerAddress
+  });
 }
 

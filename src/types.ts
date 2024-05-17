@@ -93,6 +93,7 @@ export type ZZPastOrder = {
 
 // eslint-disable-next-line no-shadow
 export enum RefereeStatus {
+  OLD = 'old',
   NEW = 'new',
   IN_REVIEW = 'in_review',
   REJECTED = 'rejected',
