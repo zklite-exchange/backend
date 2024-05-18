@@ -3,7 +3,7 @@ import * as console from "console";
 import { redis } from "src/redisClient";
 import db from "src/db";
 import { REF_CODE_ORGANIC } from "src/types";
-import { captureError, RE_REF_CODE } from "src/utils";
+import { captureError, RE_ETHER_ADDRESS, RE_REF_CODE } from "src/utils";
 import type { ExtraReplyMessage } from "telegraf/typings/telegram-types";
 import { bold, code, fmt, type FmtString, italic, link } from "telegraf/format";
 import fetch from "isomorphic-fetch";
@@ -125,7 +125,7 @@ export async function launchTgBot() {
         }`);
       } else {
         const address = ctx.text;
-        if (!address || !/^0x[a-fA-F0-9]{40}/.test(address)) {
+        if (!address || !RE_ETHER_ADDRESS.test(address)) {
           ctx.reply("This is not a valid zkSync Lite address, please type again");
           return;
         }

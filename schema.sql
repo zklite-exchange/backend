@@ -324,24 +324,24 @@ CREATE        INDEX IF NOT EXISTS referral_commissions_chainid_ref_address ON re
 
 CREATE TABLE IF NOT EXISTS device2noti (
     id                 SERIAL          PRIMARY KEY,
-    device_id          TEXT            NOT NULL,
+    device_alias       TEXT            NOT NULL,
     tg_id              TEXT            NOT NULL,
     created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS device2noti_device_id_tg_id ON device2noti(device_id, tg_id);
+CREATE UNIQUE INDEX IF NOT EXISTS device2noti_device_alias_tg_id ON device2noti(device_alias, tg_id);
 CREATE        INDEX IF NOT EXISTS device2noti_tg_id ON device2noti(tg_id);
 
 CREATE TABLE IF NOT EXISTS address2device (
     id                 SERIAL          PRIMARY KEY,
     chainid            INTEGER         NOT NULL,
     address            CITEXT          NOT NULL,
-    device_id          TEXT            NOT NULL,
+    device_alias       TEXT            NOT NULL,
     created_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS address2device_chainid_address_device_id ON address2device(chainid, address, device_id);
-CREATE        INDEX IF NOT EXISTS address2device_device_id ON address2device(device_id);
+CREATE UNIQUE INDEX IF NOT EXISTS address2device_chainid_address_device_alias ON address2device(chainid, address, device_alias);
+CREATE        INDEX IF NOT EXISTS address2device_device_alias ON address2device(device_alias);
 
 CREATE TABLE IF NOT EXISTS account_volume (
   id                      SERIAL          PRIMARY KEY,

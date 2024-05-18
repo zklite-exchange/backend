@@ -11,15 +11,23 @@ import { customAlphabet, urlAlphabet } from "nanoid";
 import * as zksync from "zksync";
 import moment from "moment";
 import * as zks from 'zksync-crypto'
-import { captureError, RE_REF_CODE } from "src/utils";
+import { captureError, RE_ETHER_ADDRESS, RE_REF_CODE } from "src/utils";
 import { notifyReferrerNewRef, notifyUser } from "src/tg";
 import { bold, code, fmt } from "telegraf/format";
 import { hexlify } from "ethers/lib/utils";
 import fetch from "isomorphic-fetch";
 import { redis } from "src/redisClient";
 import { captureException } from "@sentry/node";
+import type { Request } from "express";
 
 const genDeviceAlias = customAlphabet(urlAlphabet, 15)
+
+declare module "express" {
+  // eslint-disable-next-line no-shadow
+  interface Request {
+     deviceAlias?: string;
+  }
+}
 
 export default function zzRoutes(app: ZZHttpServer) {
   const defaultChainId = process.env.DEFAULT_CHAIN_ID ? Number(process.env.DEFAULT_CHAIN_ID) : 1
@@ -342,28 +350,39 @@ export default function zzRoutes(app: ZZHttpServer) {
     })
     await Promise.all(results)
     res.json(marketInfos)
-  })
+  });
 
-  app.post("/api/v1/referral/reg_device", async (req, res) => {
+  const deviceAliasMiddleware = async (req: Request, res: any, next: any) => {
+    let {deviceAlias} = req.cookies;
+    if (!deviceAlias) {
+      deviceAlias = genDeviceAlias();
+      try {
+        await db.query(
+          `INSERT INTO devices (alias, user_agent) VALUES ($1, $2)`,
+          [deviceAlias, req.header('user-agent')]);
+      } catch (e) {
+        captureError(e, {req});
+        res.status(500).send({});
+        return;
+      }
+
+      res.cookie('deviceAlias', deviceAlias, {
+        expires: new Date(moment().add(10, 'years').toDate()),
+        path: '/',
+        domain: '.zklite.io'
+      })
+    }
+    req.deviceAlias = deviceAlias;
+    next()
+  }
+
+  app.post("/api/v1/reg_device", deviceAliasMiddleware, async (req: Request, res) => {
+    if (!req.deviceAlias) throw new Error("requires deviceAliasMiddleware");
+
     const result = {
-      deviceAlias: req.cookies.deviceAlias,
+      deviceAlias: req.deviceAlias,
       refCode: req.cookies.refCode,
     }
-
-    if (!result.deviceAlias) {
-      const newDeviceAlias = genDeviceAlias();
-      await db.query(
-        `INSERT INTO devices (alias, user_agent) VALUES ($1, $2)`,
-        [newDeviceAlias, req.header('user-agent')]);
-      result.deviceAlias = newDeviceAlias;
-    }
-
-
-    res.cookie('deviceAlias', result.deviceAlias, {
-      expires: new Date(moment().add(10, 'years').toDate()),
-      path: '/',
-      domain: '.zklite.io'
-    })
 
     const newRefCode = req.body.refCode;
     if (newRefCode && newRefCode !== result.refCode && RE_REF_CODE.test(req.body.refCode)) {
@@ -373,10 +392,14 @@ export default function zzRoutes(app: ZZHttpServer) {
         `, [newRefCode]);
       if (update.rowCount > 0) {
         result.refCode = newRefCode;
+        res.cookie('refCode', result.refCode, {
+          expires: new Date(moment().add(10, 'years').toDate()),
+          path: '/',
+          domain: '.zklite.io'
+        })
 
         if (update.rows[0].click_count === 2) {
-          const msg = fmt`🎉 Your referral link is working (REF_CODE: ${code`${newRefCode}`}), someone just opened it in a browser.
-/ref_links to view stats of your referral links.`
+          const msg = fmt`🎉 Your referral link is working (REF_CODE: ${code`${newRefCode}`}), someone just opened it in a browser.`
           notifyUser(msg, {
             chainId: update.rows[0].chainid,
             address: update.rows[0].address,
@@ -385,20 +408,85 @@ export default function zzRoutes(app: ZZHttpServer) {
       }
     }
 
-    if (result.refCode) {
-      res.cookie('refCode', result.refCode, {
-        expires: new Date(moment().add(10, 'years').toDate()),
-        path: '/',
-        domain: '.zklite.io'
-      })
-    }
     res.status(200).send(result);
   });
 
-  app.post("/api/v1/referral/zksync_lite", async (req, res) => {
-    const { refCode, address, pubKey, signature } = req.body;
+  app.post("/api/v1/auth", deviceAliasMiddleware, async (req: Request, res) => {
+    if (!req.deviceAlias) throw new Error("requires deviceAliasMiddleware");
+    const { chainId, address, signature, pubKey } = req.body;
+    if (chainId !== 1) {
+      res.status(400).send({message: 'Unsupported chain'})
+      return
+    }
+    const msg = `${req.deviceAlias}-${chainId}-${address}`
+    const msgBytes = zksync.utils.getSignedBytesFromMessage(msg, false)
+    const valid = zks.verify_musig(msgBytes, Uint8Array.from(Buffer.from(pubKey + signature, 'hex')))
+    if (!valid) {
+      res.status(400).send({message: 'Invalid signature'})
+      return
+    }
+    const pubKeyHash = `sync:${hexlify(zks.pubKeyHash(Buffer.from(pubKey, 'hex'))).replace('0x', '')}`
+    const accountPubKeyHash = await fetch(`https://api.zksync.io/api/v0.2/accounts/${address}`)
+      .then((r: any) => r.json())
+      .then((data: any) => data.result?.committed?.pubKeyHash)
+    if (pubKeyHash !== accountPubKeyHash) {
+      res.status(400).send({message: 'Invalid pubic key'})
+      return
+    }
+    await db.query(`
+      INSERT INTO address2device (chainid, address, device_alias) VALUES ($1, $2, $3)
+      ON CONFLICT DO NOTHING
+    `, [chainId, address, req.deviceAlias]);
+    res.status(200).send({})
+  });
 
-    const shouldRetry = true
+  app.post("/api/v1/referral/create_link", async (req, res) => {
+    const { refCode, address, chainId } = req.body;
+    if (!RE_REF_CODE.test(refCode || "")) {
+      res.status(400).send({ message: "Invalid refCode" });
+      return;
+    }
+    if (!RE_ETHER_ADDRESS.test(address || "")) {
+      res.status(400).send({ message: "Invalid address" });
+      return;
+    }
+    if (chainId !== 1) {
+      res.status(400).send({ message: `Unsupported chainId ${chainId}` });
+      return;
+    }
+    try {
+      await db.query(`
+        INSERT INTO referrers (chainid, address, code) VALUES ($1, $2, $3)
+      `, [chainId, address, refCode]);
+      res.status(200).send({});
+    } catch (e: any) {
+      if (e.message?.includes("referrers_code")) {
+        res.status(400).send({ what: 'code_is_taken', message: 'Ref code is taken, please choose another code.' });
+      } else {
+        captureError(e, {req})
+        res.status(500).send({ message: 'Internal error' });
+      }
+    }
+  });
+
+  app.post("/api/v1/referral/zksync_lite", deviceAliasMiddleware, async (req: Request, res) => {
+    const { refCode, address } = req.body;
+
+    let isAuthorized = false;
+    if (req.deviceAlias) {
+       const queryRes = await db.query(`
+          SELECT 1 from account2device where chainid = 1 and address = $1 and device_alias = $2 LIMIT 1
+       `, [address, req.deviceAlias]
+       )
+      if (queryRes.rowCount > 0) {
+        isAuthorized = true;
+      }
+    }
+    if (!isAuthorized) {
+      res.status(401).send({message: "Unauthorized"});
+      return;
+    }
+
 
     const referrerAddress = RE_REF_CODE.test(refCode ?? "")
       ? (await db.query(`SELECT address FROM referrers WHERE code = $1`, [refCode]))
@@ -425,37 +513,6 @@ export default function zzRoutes(app: ZZHttpServer) {
       return
     }
 
-    if (!address || !pubKey || !signature) {
-      res.status(400).send({message: 'Invalid post data', shouldRetry})
-      return
-    }
-
-    const msg = `${refCode}-${address}`
-    const msgBytes = zksync.utils.getSignedBytesFromMessage(msg, false)
-    const valid = zks.verify_musig(msgBytes, Uint8Array.from(Buffer.from(pubKey + signature, 'hex')))
-    if (!valid) {
-      res.status(400).send({message: 'Invalid signature', shouldRetry})
-      return
-    }
-    const pubKeyHash = `sync:${hexlify(zks.pubKeyHash(Buffer.from(pubKey, 'hex'))).replace('0x', '')}`
-    const accountPubKeyHash = await fetch(`https://api.zksync.io/api/v0.2/accounts/${address}`)
-      .then((r: any) => r.json())
-      .then((data: any) => data.result?.committed?.pubKeyHash)
-    const pendingRefRedisKey = `pending_ref:1:${address.toLowerCase()}`
-    if (pubKeyHash !== accountPubKeyHash) {
-      if (accountPubKeyHash) {
-        res.status(400).send({message: 'Invalid pubic key', shouldRetry})
-        return
-      }
-      // account didn't set public key yet, remember it on redis
-      await redis.HSET(pendingRefRedisKey, pubKey, JSON.stringify({
-        refCode, signature, pubKeyHash, referrerAddress
-      }))
-      await redis.EXPIRE(pendingRefRedisKey, moment.duration(30, 'd').asSeconds())
-      res.status(200).send({})
-      return
-    }
-
     try {
       const isOld = (await db.query(`SELECT 1 FROM past_orders where chainid = 1 AND taker_address = $1 LIMIT 1`, [address])).rowCount > 0
       await db.query(`
@@ -474,7 +531,6 @@ export default function zzRoutes(app: ZZHttpServer) {
 
     console.log(`Register ref code ${refCode} ${address} success`)
     notifyReferrerNewRef(1, referrerAddress, refCode, address)
-    redis.DEL(pendingRefRedisKey).catch()
     res.status(200).send({})
   })
 }

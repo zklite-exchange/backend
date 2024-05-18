@@ -135,6 +135,7 @@ export function sortMarketPair(tokenInputA: string, tokenInputB: string): string
 }
 
 export const RE_REF_CODE = /^[a-zA-Z0-9_]{5,15}$/
+export const RE_ETHER_ADDRESS = /^0x[a-fA-F0-9]{40}$/
 
 export const CMC_IDS: Record<string, number> = {
   "BTC": 1,
