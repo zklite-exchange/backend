@@ -3,12 +3,12 @@ import type { WSMessage, ZZServiceHandler } from 'src/types'
 export const submitorder2: ZZServiceHandler = async (
   api,
   ws,
-  [chainId, market, zktx, refCode]
+  [chainId, market, zktx]
 ) => {
   let msg: WSMessage
   try {
     if (api.VALID_CHAINS_ZKSYNC.includes(chainId)) {
-      msg = await api.processorderzksync(chainId, market, zktx, refCode)
+      msg = await api.processorderzksync(chainId, market, zktx)
     } else {
       msg = { op: 'error', args: ['submitorder2', `'${chainId}' is an invalid chainId`] }
     }

@@ -26,6 +26,7 @@ export type ZkTx = {
   ratio: [number, number]
   amount: number
   validUntil: number
+  recipient: string
 }
 
 export type ZZMarketSummary = {

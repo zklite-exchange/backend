@@ -8,7 +8,7 @@ import fs from 'fs'
 import moment from "moment";
 import * as Sentry from "@sentry/node"
 
-import { launchTgBot, notifyReferrerNewRef } from "./tg";
+import { concatFmt, launchTgBot, notifyReferrerNewRef, notifyUser } from "./tg";
 import { redis, publisher } from './redisClient'
 import db from './db'
 import {
@@ -34,6 +34,7 @@ import {
   REF_VOL_COMMISSION_MAX,
   REF_ADDRESS_ORGANIC
 } from "./types";
+import { bold, fmt, link } from "telegraf/format";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN
@@ -86,12 +87,27 @@ async function updatePendingOrders() {
 
   const expiredTimestamp = ((Date.now() / 1000) | 0) + Math.floor(updatePendingOrdersDelay)
   const expiredQuery = {
-    text: "UPDATE offers SET order_status='e', zktx=NULL, update_timestamp=NOW() WHERE order_status IN ('o', 'pm', 'pf') AND expires < $1 RETURNING chainid, id, order_status",
+    text: "UPDATE offers SET order_status='e', update_timestamp=NOW() WHERE order_status IN ('o', 'pm', 'pf') AND expires < $1 RETURNING chainid, id, order_status, zktx, side, market",
     values: [expiredTimestamp],
   }
   const updateExpires = await db.query(expiredQuery)
   if (updateExpires.rowCount > 0) {
     orderUpdates = orderUpdates.concat(updateExpires.rows.map((row) => [row.chainid, row.id, row.order_status]))
+    for (let i = 0; i < updateExpires.rows.length; i++) {
+      const expiredOrder = updateExpires.rows[i];
+      // eslint-disable-next-line no-continue
+      if (!expiredOrder.zktx) continue;
+      const zktx = JSON.parse(expiredOrder.zktx);
+      const {id, side, market} = expiredOrder;
+      notifyUser(concatFmt(
+        fmt`⌛️❌ Order expired #${id} `,
+        bold`${side === 'b' ? 'BUY 🟢 ' : `SELL 🔴 `}`,
+        link(market, `https://trade.zklite.io/?market=${market}&network=zksync`)
+      ), {
+        chainId: 1, address: zktx.recipient,
+        link_preview_options: {is_disabled: true}
+      })
+    }
   }
 
   if (orderUpdates.length > 0) {

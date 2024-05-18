@@ -115,7 +115,8 @@ export async function notifyReferrerNewRef(chainId: number, referrerAddress: str
     link("address", `https://zkscan.io/explorer/accounts/${address}`)
   } has been connected zklite.io using your referral link (REF_CODE: ${code(refCode)})`;
   notifyUser(msg, {
-    chainId, address: referrerAddress
+    chainId, address: referrerAddress,
+    link_preview_options: {is_disabled: true}
   });
 }
 

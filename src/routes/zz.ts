@@ -475,7 +475,7 @@ export default function zzRoutes(app: ZZHttpServer) {
     let isAuthorized = false;
     if (req.deviceAlias) {
        const queryRes = await db.query(`
-          SELECT 1 from account2device where chainid = 1 and address = $1 and device_alias = $2 LIMIT 1
+          SELECT 1 FROM address2device WHERE chainid = 1 AND address = $1 and device_alias = $2 LIMIT 1
        `, [address, req.deviceAlias]
        )
       if (queryRes.rowCount > 0) {
@@ -516,7 +516,7 @@ export default function zzRoutes(app: ZZHttpServer) {
     try {
       const isOld = (await db.query(`SELECT 1 FROM past_orders where chainid = 1 AND taker_address = $1 LIMIT 1`, [address])).rowCount > 0
       await db.query(`
-        INSERT INTO referees (chainid, address, ref_address, ref_code, ref_status)
+        INSERT INTO referees (chainid, address, ref_address, ref_code, status)
         VALUES ($1, $2, $3, $4, $5)
       `, [1, address, referrerAddress, refCode, isOld ? RefereeStatus.OLD : RefereeStatus.NEW])
     } catch (e: any) {

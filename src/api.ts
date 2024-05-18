@@ -29,13 +29,15 @@ import {
   getNetwork,
   getRPCURL,
   getERC20Info,
-  getNewToken, RE_REF_CODE
+  getNewToken, RE_REF_CODE, captureError
 } from "src/utils";
 import {
   getEvmEIP712Types,
   modifyOldSignature,
   verifyMessage,
 } from 'src/cryptography'
+import { concatFmt, notifyUser } from "src/tg";
+import { bold, code, fmt, link } from "telegraf/format";
 
 export default class API extends EventEmitter {
   USER_CONNECTIONS: AnyObject = {}
@@ -611,6 +613,28 @@ export default class API extends EventEmitter {
           "UPDATE fills SET fill_status=$1,feeamount=$2,feetoken=$3,price=$4 WHERE taker_offer_id=$5 AND chainid=$6 AND fill_status IN ('b', 'm') RETURNING id, market, price, amount, maker_user_id, insert_timestamp",
           valuesFills
         )
+
+        const pairLink = link(market, `https://trade.zklite.io/?market=${market}C&network=zksync`)
+        const [baseSymbol, quoteSymbol] = market.split('-');
+        const notificationMsg = concatFmt(
+          `🎉 Filled order #${orderid}:\n`,
+          fmt`- ${bold`${side === 'b' ? 'BUY 🟢' : `SELL 🔴`}`} ${pairLink}\n`,
+          fmt`- Price: ${formatPrice(priceWithoutFee)}\n`,
+          side === 'b'
+            ? fmt`- ${formatPrice(quoteAmount)} ${quoteSymbol} ➡️ ${formatPrice(baseAmount)} ${baseSymbol}\n`
+            : fmt`- ${formatPrice(baseAmount)} ${baseSymbol} ➡️ ${formatPrice(quoteAmount)} ${quoteSymbol}\n`,
+          fmt`- Network fee ~`,
+          side === 'b'
+            ? `${formatPrice(marketInfo.quoteFee)} ${quoteSymbol}\n`
+            : `${formatPrice(marketInfo.baseFee)} ${baseSymbol}\n`,
+          `- Transaction:\n`,
+          `https://zkscan.io/explorer/transactions/${txhash}`
+        )
+        notifyUser(notificationMsg, {
+          chainId,
+          address: zktx.recipient,
+          link_preview_options: {is_disabled: true}
+        })
       } else {
         const valuesFills = [newstatus, feeAmount, feeToken, orderid, chainId]
         update2 = await this.db.query(
@@ -695,11 +719,9 @@ export default class API extends EventEmitter {
   processorderzksync = async (
     chainId: number,
     market: ZZMarket,
-    zktx: ZkTx,
-    refCode?: string
+    zktx: ZkTx
   ) => {
     chainId = Number(chainId)
-    refCode = refCode && RE_REF_CODE.test(refCode) ? refCode : undefined;
 
     const inputValidation = zksyncOrderSchema.validate(zktx)
     if (inputValidation.error) throw inputValidation.error
@@ -777,12 +799,11 @@ export default class API extends EventEmitter {
       expires,
       JSON.stringify(zktx),
       baseQuantity,
-      token,
-      refCode
+      token
     ]
     // save order to DB
     const query =
-      'INSERT INTO offers(chainid, userid, nonce, market, side, price, base_quantity, quote_quantity, order_type, order_status, expires, zktx, insert_timestamp, unfilled, token, ref_code) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15) RETURNING id'
+      'INSERT INTO offers(chainid, userid, nonce, market, side, price, base_quantity, quote_quantity, order_type, order_status, expires, zktx, insert_timestamp, unfilled, token) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14) RETURNING id'
     const insert = await this.db.query(query, queryargs)
     const orderId = insert.rows[0].id
     const orderreceipt = [
@@ -798,6 +819,28 @@ export default class API extends EventEmitter {
       'o',
       baseQuantity,
     ]
+    const priceAfterFee = side === 'b'
+      ? (quoteQuantity - marketInfo.quoteFee) / baseQuantity
+      : quoteQuantity / (baseQuantity - marketInfo.baseFee);
+    const [baseSymbol, quoteSymbol] = market.split("-");
+    const pairLink = link(market, `https://trade.zklite.io/?market=${market}C&network=zksync`)
+    const notificationMsg = concatFmt(
+      `New order #${orderId}:\n`,
+      fmt`- ${bold`${side === 'b' ? 'BUY 🟢' : `SELL 🔴`}`} ${pairLink}\n`,
+      fmt`- Price: ${formatPrice(priceAfterFee)}\n`,
+      side === 'b'
+        ? fmt`- ${formatPrice(quoteQuantity)} ${quoteSymbol} ➡️ ${formatPrice(baseQuantity)} ${baseSymbol}\n`
+        : fmt`- ${formatPrice(baseQuantity)} ${baseSymbol} ➡️ ${formatPrice(quoteQuantity)} ${quoteSymbol}\n`,
+      fmt`- Network fee ~`,
+      side === 'b'
+        ? `${formatPrice(marketInfo.quoteFee)} ${quoteSymbol}`
+        : `${formatPrice(marketInfo.baseFee)} ${baseSymbol}`
+    )
+    notifyUser(notificationMsg, {
+      chainId,
+      address: zktx.recipient,
+      link_preview_options: {is_disabled: true}
+    })
 
     // broadcast new order
     this.redisPublisher.PUBLISH(
@@ -816,7 +859,7 @@ export default class API extends EventEmitter {
   ): Promise<boolean> => {
     const values = [orderId, chainId]
     const select = await this.db.query(
-      'SELECT userid, order_status FROM offers WHERE id=$1 AND chainid=$2',
+      'SELECT userid, order_status, zktx, side, market FROM offers WHERE id=$1 AND chainid=$2',
       values
     )
 
@@ -850,6 +893,21 @@ export default class API extends EventEmitter {
       throw new Error('Order is no longer open')
     }
 
+    if (select.rows[0].zktx) {
+      const {side, market} = select.rows[0];
+      const zktx = JSON.parse(select.rows[0].zktx);
+      notifyUser(
+        concatFmt(
+          fmt`❌ Cancelled order #${orderId} `,
+          bold`${side === 'b' ? 'BUY 🟢 ' : `SELL 🔴 `}`,
+          link(market, `https://trade.zklite.io/?market=${market}&network=zksync`)
+        ), {
+          chainId: 1, address: zktx.recipient,
+          link_preview_options: {is_disabled: true}
+        }
+      )
+    }
+
     const updatevalues = [orderId]
     const update = await this.db.query(
       "UPDATE offers SET order_status='c', zktx=NULL, update_timestamp=NOW(), unfilled=0 WHERE id=$1 RETURNING market",
@@ -878,7 +936,7 @@ export default class API extends EventEmitter {
   ): Promise<boolean> => {
     const values = [orderId, chainId]
     const select = await this.db.query(
-      'SELECT userid, order_status, token FROM offers WHERE id=$1 AND chainid=$2',
+      'SELECT userid, order_status, token, zktx, side, market FROM offers WHERE id=$1 AND chainid=$2',
       values
     )
 
@@ -891,6 +949,21 @@ export default class API extends EventEmitter {
 
     if (!['o', 'pf', 'pm'].includes(select.rows[0].order_status)) {
       throw new Error('Order is no longer open')
+    }
+
+    if (select.rows[0].zktx) {
+      const {side, market} = select.rows[0];
+      const zktx = JSON.parse(select.rows[0].zktx);
+      notifyUser(
+        concatFmt(
+          fmt`❌ Cancelled order #${orderId} `,
+          bold`${side === 'b' ? 'BUY 🟢 ' : `SELL 🔴 `}`,
+          link(market, `https://trade.zklite.io/?market=${market}&network=zksync`)
+        ), {
+          chainId: 1, address: zktx.recipient,
+          link_preview_options: {is_disabled: true}
+        }
+      )
     }
 
     const updatevalues = [orderId]
