@@ -1,30 +1,38 @@
 import * as starknet from 'starknet'
 import * as Sentry from '@sentry/node'
-import { type BytesLike, ethers } from "ethers";
+import { ethers } from "ethers";
 import { randomBytes } from 'crypto'
-import { addRequestDataToEvent } from "@sentry/node";
 
 export function formatPrice(input: any) {
   const inputNumber = Number(input)
   if (inputNumber > 99999) {
-    return inputNumber.toFixed(0)
+    return Number(inputNumber.toFixed(0)).toString()
   }
   if (inputNumber > 9999) {
-    return inputNumber.toFixed(1)
+    return Number(inputNumber.toFixed(1)).toString()
   }
   if (inputNumber > 999) {
-    return inputNumber.toFixed(2)
+    return Number(inputNumber.toFixed(2)).toString()
   }
   if (inputNumber > 99) {
-    return inputNumber.toFixed(3)
+    return Number(inputNumber.toFixed(3)).toString()
   }
   if (inputNumber > 9) {
-    return inputNumber.toFixed(4)
+    return Number(inputNumber.toFixed(4)).toString()
   }
-  if (inputNumber > 1) {
-    return inputNumber.toFixed(5)
+  if (inputNumber > 0.1) {
+    return Number(inputNumber.toFixed(5)).toString()
   }
-  return inputNumber.toPrecision(6)
+  if (inputNumber > 0.01) {
+    return Number(inputNumber.toFixed(6)).toString()
+  }
+  if (inputNumber > 0.001) {
+    return Number(inputNumber.toFixed(7)).toString()
+  }
+  if (inputNumber > 0.00001) {
+    return Number(inputNumber.toFixed(8)).toString()
+  }
+  return Number(inputNumber.toFixed(10)).toString()
 }
 
 export function stringToFelt(text: string) {
