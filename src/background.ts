@@ -927,7 +927,7 @@ async function start() {
   setInterval(updatePriceHighLow, 30000)
   setInterval(updateVolumes, 30000)
   setInterval(deleteOldOrders, 60 * 60 * 1000)
-  setInterval(updateAccVolume, 5000)
+  // setInterval(updateAccVolume, 5000)
 
   launchTgBot()
 }
