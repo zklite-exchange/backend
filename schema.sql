@@ -23,6 +23,7 @@ CREATE INDEX IF NOT EXISTS offers_order_status_by_market_idx ON offers(chainid, 
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS txhash TEXT;
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS token TEXT; 
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS ref_code TEXT;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS recipientAddress CITEXT;
 
 CREATE TABLE IF NOT EXISTS fills (
   id                 SERIAL          PRIMARY KEY,

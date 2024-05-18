@@ -79,7 +79,7 @@ async function updatePendingOrders() {
 
   const expiredTimestamp = ((Date.now() / 1000) | 0) + Math.floor(updatePendingOrdersDelay)
   const expiredQuery = {
-    text: "UPDATE offers SET order_status='e', update_timestamp=NOW() WHERE order_status IN ('o', 'pm', 'pf') AND expires < $1 RETURNING chainid, id, order_status, zktx, side, market",
+    text: "UPDATE offers SET order_status='e', zktx=NULL, update_timestamp=NOW() WHERE order_status IN ('o', 'pm', 'pf') AND expires < $1 RETURNING chainid, id, order_status, recipientAddress, side, market",
     values: [expiredTimestamp],
   }
   const updateExpires = await db.query(expiredQuery)
@@ -88,15 +88,13 @@ async function updatePendingOrders() {
     for (let i = 0; i < updateExpires.rows.length; i++) {
       const expiredOrder = updateExpires.rows[i];
       // eslint-disable-next-line no-continue
-      if (!expiredOrder.zktx) continue;
-      const zktx = JSON.parse(expiredOrder.zktx);
-      const {id, side, market} = expiredOrder;
+      const {id, side, market, recipientAddress} = expiredOrder;
       notifyUser(concatFmt(
         fmt`⌛️❌ Order expired #${id} `,
         bold`${side === 'b' ? 'BUY 🟢 ' : `SELL 🔴 `}`,
         link(market, `https://trade.zklite.io/?market=${market}&network=zksync`)
       ), {
-        chainId: 1, address: zktx.recipient,
+        chainId: 1, address: recipientAddress,
         link_preview_options: {is_disabled: true}
       })
     }

@@ -457,12 +457,10 @@ export default class API extends EventEmitter {
     let side
     let makerUserId
     let zktx: any
-    let refCode
-    let refAddress
     try {
       const valuesOffers = [newstatus, txhash, chainId, orderid]
       update = await this.db.query(
-        "UPDATE offers SET order_status=$1, txhash=$2, update_timestamp=NOW() WHERE chainid=$3 AND id=$4 AND order_status IN ('b', 'm', $1) RETURNING side, market, userid, zktx, ref_code",
+        "UPDATE offers SET order_status=$1, txhash=$2, update_timestamp=NOW() WHERE chainid=$3 AND id=$4 AND order_status IN ('b', 'm', $1) RETURNING side, market, userid, zktx",
         valuesOffers
       )
       if (update.rows.length > 0) {
@@ -470,12 +468,6 @@ export default class API extends EventEmitter {
         market = update.rows[0].market
         userId = update.rows[0].userid
         zktx = JSON.parse(update.rows[0].zktx)
-        refCode = update.rows[0].ref_code
-        if (refCode) {
-          refAddress = (await this.db.query(`SELECT address FROM referrers WHERE chainid = $1 AND code = $2`, [1, refCode]))
-            .rows[0]?.address
-          if (!refAddress) refCode = undefined;
-        }
       } else {
         return false
       }
@@ -518,21 +510,6 @@ export default class API extends EventEmitter {
         }
         if (fetchResult.result.tx.op.orders.find((it: any) => it.signature.signature === zktx.signature.signature) == null) {
           return false
-        }
-
-        if (!refCode) {
-          const pendingRefKey = `pending_ref:1:${zktx.recipient.toLowerCase()}`;
-          let pendingRef: any = await this.redis.HGET(pendingRefKey, zktx.signature.pubKey).catch()
-          if (pendingRef) {
-            this.redis.DEL(pendingRef).catch()
-            pendingRef = JSON.parse(pendingRef)
-            refCode = pendingRef.refCode
-            refAddress = pendingRef.referrerAddress
-            if (!refCode || !refAddress) {
-              refCode = undefined;
-              refAddress = undefined;
-            }
-          }
         }
 
         let baseAmount: number
@@ -591,14 +568,11 @@ export default class API extends EventEmitter {
                         txtime,
                         base_usd_price,
                         quote_usd_price,
-                        ref_code,
-                        ref_address
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             txhash, market, chainId, takerAddress, makerAddress, side,
             baseAmount, quoteAmount, priceWithoutFee, usdNotional, feeAmount, feeToken, txTime,
-            marketInfo.baseAsset.usdPrice || 0, marketInfo.quoteAsset.usdPrice || 0,
-            refCode, refAddress
+            marketInfo.baseAsset.usdPrice || 0, marketInfo.quoteAsset.usdPrice || 0
           ])
 
         const valuesFills = [
@@ -636,11 +610,25 @@ export default class API extends EventEmitter {
           link_preview_options: {is_disabled: true}
         })
       } else {
+        // status 'r' rejected
         const valuesFills = [newstatus, feeAmount, feeToken, orderid, chainId]
         update2 = await this.db.query(
           "UPDATE fills SET fill_status=$1,feeamount=$2,feetoken=$3 WHERE taker_offer_id=$4 AND chainid=$5 AND fill_status IN ('b', 'm') RETURNING id, market, price, amount, maker_user_id, insert_timestamp",
           valuesFills
         )
+
+        if (update2.rows.length) {
+          const pairLink = link(market, `https://trade.zklite.io/?market=${market}C&network=zksync`)
+          const notificationMsg = concatFmt(
+            `❌ Order failed #${orderid} ${bold`${side === 'b' ? 'BUY 🟢' : `SELL 🔴`}`} ${pairLink}`,
+            txhash ? `\n- Transaction:\nhttps://zkscan.io/explorer/transactions/${txhash}` : ''
+          )
+          notifyUser(notificationMsg, {
+            chainId,
+            address: zktx.recipient,
+            link_preview_options: {is_disabled: true}
+          })
+        }
       }
 
       if (update2.rows.length > 0) {
@@ -784,6 +772,7 @@ export default class API extends EventEmitter {
     const orderType = 'limit'
     const expires = zktx.validUntil
     const userid = zktx.accountId
+    const recipientAddress = zktx.recipient;
     const token = getNewToken()
     const queryargs = [
       chainId,
@@ -799,11 +788,12 @@ export default class API extends EventEmitter {
       expires,
       JSON.stringify(zktx),
       baseQuantity,
-      token
+      token,
+      recipientAddress
     ]
     // save order to DB
     const query =
-      'INSERT INTO offers(chainid, userid, nonce, market, side, price, base_quantity, quote_quantity, order_type, order_status, expires, zktx, insert_timestamp, unfilled, token) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14) RETURNING id'
+      'INSERT INTO offers(chainid, userid, nonce, market, side, price, base_quantity, quote_quantity, order_type, order_status, expires, zktx, insert_timestamp, unfilled, token, recipientAddress) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15) RETURNING id'
     const insert = await this.db.query(query, queryargs)
     const orderId = insert.rows[0].id
     const orderreceipt = [
