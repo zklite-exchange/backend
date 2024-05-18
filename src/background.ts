@@ -1,16 +1,17 @@
 /* eslint-disable camelcase */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import './env'
-import fetch from 'isomorphic-fetch'
-import { ethers } from 'ethers'
-import * as zksync from 'zksync'
-import fs from 'fs'
+import "./env";
+import fetch from "isomorphic-fetch";
+import { ethers } from "ethers";
+import * as zksync from "zksync";
+import fs from "fs";
 import moment from "moment";
-import * as Sentry from "@sentry/node"
+import * as Sentry from "@sentry/node";
+import { bold, fmt, link } from "telegraf/format";
 
 import { concatFmt, launchTgBot, notifyReferrerNewRef, notifyUser } from "./tg";
-import { redis, publisher } from './redisClient'
-import db from './db'
+import { redis, publisher } from "./redisClient";
+import db from "./db";
 import {
   formatPrice,
   getNetwork,
@@ -19,22 +20,13 @@ import {
   getReadableTxError,
   sortMarketPair,
   CMC_IDS
-} from './utils'
-import {
-  type ZZMarketInfo,
-  type AnyObject,
-  type ZZMarket,
-  type ZZMarketSummary,
-  type ZZPastOrder,
-  RefereeStatus,
-  REF_CODE_ORGANIC,
-  REF_MIN_USD,
-  REF_MIN_TRADE_COUNT,
-  REF_VOL_COMMISSION_RATE,
-  REF_VOL_COMMISSION_MAX,
-  REF_ADDRESS_ORGANIC
+} from "./utils";
+import type {
+  ZZMarketInfo,
+  AnyObject,
+  ZZMarket,
+  ZZMarketSummary
 } from "./types";
-import { bold, fmt, link } from "telegraf/format";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN
@@ -821,83 +813,58 @@ async function updateMarketSummarys() {
 }
 
 let isRunningProcessAccVolume = false
+
 async function updateAccVolume() {
-  if (isRunningProcessAccVolume) return
-  isRunningProcessAccVolume = true
-  console.time('updateAccVolume')
-  let pastOrders
+  if (isRunningProcessAccVolume) return;
+  isRunningProcessAccVolume = true;
+  console.time("updateAccVolume");
+  let pastOrders;
   try {
-    const chainId = 1
-    const keyLastProceedPastOrderId = 'last_proceed_past_order_id3'
-    const lastProceedPastOrderId = Number(await redis.HGET(`acc_vol_worker:${chainId}`, keyLastProceedPastOrderId) ?? 0)
+    const chainId = 1;
+    const keyLastProceedPastOrderId = "last_proceed_past_order_id3";
+    const workerPrefs = `acc_vol_worker:${chainId}`;
+    const lastProceedPastOrderId = Number(await redis.HGET(workerPrefs, keyLastProceedPastOrderId) ?? 0);
 
     pastOrders = await db.query(`
       SELECT * FROM past_orders
       WHERE chainid = $1 AND id > $2
       ORDER BY id ASC LIMIT 100
-    `, [chainId, lastProceedPastOrderId])
+    `, [chainId, lastProceedPastOrderId]);
 
-    if (pastOrders.rowCount <= 0) return
+    if (pastOrders.rowCount <= 0) return;
 
     for (let i = 0; i < pastOrders.rows.length; i++) {
-      const row = pastOrders.rows[i]
-      const refCommission = Math.min(
-        row.usd_notional * REF_VOL_COMMISSION_RATE,
-        REF_VOL_COMMISSION_MAX
-      )
-      let refAddress = row.ref_address
-      let refCode = row.ref_code
-      if (!refAddress || !refCode) {
-        refAddress = REF_ADDRESS_ORGANIC
-        refCode = REF_CODE_ORGANIC
-      }
-      const createdAt = moment()
-      const tableName = 'account_volume'
+      const row = pastOrders.rows[i];
+      const createdAt = moment();
+      const tableName = "account_volume";
       const update = await db.query(`
         INSERT INTO ${tableName} 
         (chainid, address, total_usd_vol, last_past_order_id,
-        ref_address, ref_code, ref_status, ref_commission,
         total_trade_count, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9)
+        VALUES ($1, $2, $3, $4, 1, $5)
         ON CONFLICT (chainid, address)
         DO UPDATE SET
           total_usd_vol = ${tableName}.total_usd_vol + $3,
           total_trade_count = ${tableName}.total_trade_count + 1,
-          ref_commission = LEAST(${tableName}.ref_commission + $8, ${REF_VOL_COMMISSION_MAX}),
           last_past_order_id = $4
         WHERE ${tableName}.last_past_order_id < $4
         RETURNING id, ref_code, ref_status, total_usd_vol, total_trade_count, created_at
       `, [
-        chainId, row.taker_address, row.usd_notional, row.id,
-        refAddress, refCode, RefereeStatus.NEW,
-        refCommission, createdAt.toISOString()
-      ])
-      if (update.rows.length) {
-        const acc = update.rows[0]
-        if (acc.ref_code !== REF_CODE_ORGANIC
-          && acc.ref_status === RefereeStatus.NEW
-          && acc.total_usd_vol >= REF_MIN_USD
-          && acc.total_trade_count >= REF_MIN_TRADE_COUNT) {
-          await db.query(`
-            UPDATE acc_volume SET ref_status = $2 WHERE id = $1 
-          `, [acc.id, RefereeStatus.IN_REVIEW])
-        }
-        if (refCode !== REF_CODE_ORGANIC && moment(acc.created_at).isSame(createdAt)) {
-          notifyReferrerNewRef(refCode, row.taker_address)
-        }
-      } else {
-        console.warn(`Detect duplicate update acc_volume pass_order.id = ${row.id}`)
+        chainId, row.taker_address, row.usd_notional, row.id, createdAt.toISOString()
+      ]);
+      if (update.rows.length < 1) {
+        console.warn(`Detect duplicate update acc_volume pass_order.id = ${row.id}`);
       }
     }
     await redis.HSET(
-      `acc_vol_worker:${chainId}`, keyLastProceedPastOrderId,
-      `${pastOrders.rows[pastOrders.rows.length - 1].id}`)
+      workerPrefs, keyLastProceedPastOrderId,
+      `${pastOrders.rows[pastOrders.rows.length - 1].id}`);
   } finally {
-    isRunningProcessAccVolume = false
+    isRunningProcessAccVolume = false;
     if (pastOrders?.rowCount) {
-      console.log(`updateAccVolume proceed ${pastOrders?.rowCount} orders`)
+      console.log(`updateAccVolume proceed ${pastOrders?.rowCount} orders`);
     }
-    console.timeEnd('updateAccVolume')
+    console.timeEnd("updateAccVolume");
   }
 }
 
