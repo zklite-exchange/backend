@@ -567,7 +567,7 @@ export default class API extends EventEmitter {
                         taker_fee_token,
                         txtime,
                         base_usd_price,
-                        quote_usd_price,
+                        quote_usd_price
                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             txhash, market, chainId, takerAddress, makerAddress, side,
